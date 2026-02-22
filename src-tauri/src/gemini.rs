@@ -3,16 +3,19 @@ use crate::AnalyzeResult;
 use crate::CellState;
 use std::collections::HashMap;
 
-fn get_cell_role(cell_id: &str) -> &'static str {
-    // cell-0 through cell-8, index = last char as digit
+fn get_cell_role(cell_id: &str, cols: usize) -> &'static str {
     let index: usize = cell_id
         .strip_prefix("cell-")
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
-    match index % 3 {
-        2 => "Stimulus",
-        1 => "Will",
-        _ => "Supply",
+    let cols = cols.max(1);
+    let col = index % cols;
+    if col == cols - 1 {
+        "Stimulus"
+    } else if cols >= 2 && col == cols - 2 {
+        "Will"
+    } else {
+        "Supply"
     }
 }
 
@@ -64,18 +67,19 @@ pub async fn analyze_cells(
     cells: &[CellState],
     history: &[AnalysisEntry],
     language: &str,
+    cols: usize,
 ) -> Result<AnalyzeResult, String> {
     let stimuli: Vec<&CellState> = cells
         .iter()
-        .filter(|c| get_cell_role(&c.id) == "Stimulus" && !c.last_output.is_empty())
+        .filter(|c| get_cell_role(&c.id, cols) == "Stimulus" && !c.last_output.is_empty())
         .collect();
     let will: Vec<&CellState> = cells
         .iter()
-        .filter(|c| get_cell_role(&c.id) == "Will" && !c.last_output.is_empty())
+        .filter(|c| get_cell_role(&c.id, cols) == "Will" && !c.last_output.is_empty())
         .collect();
     let supply: Vec<&CellState> = cells
         .iter()
-        .filter(|c| get_cell_role(&c.id) == "Supply" && !c.last_output.is_empty())
+        .filter(|c| get_cell_role(&c.id, cols) == "Supply" && !c.last_output.is_empty())
         .collect();
 
     let has_any = !stimuli.is_empty() || !will.is_empty() || !supply.is_empty();

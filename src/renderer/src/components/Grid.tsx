@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import type { CellState } from '../../../shared/types'
-import { CELL_IDS, COL_LABELS } from '../../../shared/types'
+import { getCellIds, getColLabels } from '../../../shared/types'
 import Cell from './Cell'
 import SynthesisPanel from './SynthesisPanel'
 
@@ -13,6 +13,8 @@ interface GridProps {
   onThemeChange: (id: string, theme: string) => void
   onActivity: (id: string) => void
   language: string
+  gridRows: number
+  gridCols: number
 }
 
 const COL_COLORS: Record<string, string> = {
@@ -21,30 +23,37 @@ const COL_COLORS: Record<string, string> = {
   'Stimulus': '#4488bb',
 }
 
-function GridInner({ cellStates, onThemeChange, onActivity, compact }: {
+function getColColor(label: string): string {
+  return COL_COLORS[label] ?? '#888'
+}
+
+function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, gridCols }: {
   cellStates: Record<string, CellState>
   onThemeChange: (id: string, theme: string) => void
   onActivity: (id: string) => void
   compact?: boolean
+  gridRows: number
+  gridCols: number
 }): JSX.Element {
+  const cellIds = getCellIds(gridRows, gridCols)
+  const colLabels = getColLabels(gridCols)
+
   const defaultState = (id: string): CellState => ({
     id, theme: '', pid: null, lastOutput: '', status: 'idle', updatedAt: 0
   })
 
   return (
     <div className="flow-grid-wrapper">
-      {/* Column headers */}
-      <div className="col-headers">
-        {COL_LABELS.map((label) => (
-          <div key={label} className="col-header" style={{ color: COL_COLORS[label], borderBottom: `1px solid ${COL_COLORS[label]}44` }}>
+      <div className="col-headers" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
+        {colLabels.map((label, i) => (
+          <div key={i} className="col-header" style={{ color: getColColor(label), borderBottom: `1px solid ${getColColor(label)}44` }}>
             {label}
           </div>
         ))}
       </div>
 
-      {/* 3x3 cells */}
-      <div className="grid">
-        {CELL_IDS.map((id) => (
+      <div className="grid" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
+        {cellIds.map((id) => (
           <Cell
             key={id}
             cellState={cellStates[id] || defaultState(id)}
@@ -58,17 +67,17 @@ function GridInner({ cellStates, onThemeChange, onActivity, compact }: {
   )
 }
 
-export default function Grid({ cellStates, cellActivity, viewMode, onThemeChange, onActivity, language }: GridProps): JSX.Element {
+export default function Grid({ cellStates, cellActivity, viewMode, onThemeChange, onActivity, language, gridRows, gridCols }: GridProps): JSX.Element {
   if (viewMode === 'command') {
     return (
       <div className="command-layout">
         <div className="command-terminals">
-          <GridInner cellStates={cellStates} onThemeChange={onThemeChange} onActivity={onActivity} compact />
+          <GridInner cellStates={cellStates} onThemeChange={onThemeChange} onActivity={onActivity} compact gridRows={gridRows} gridCols={gridCols} />
         </div>
-        <SynthesisPanel cellStates={cellStates} cellActivity={cellActivity} language={language} />
+        <SynthesisPanel cellStates={cellStates} cellActivity={cellActivity} language={language} cols={gridCols} />
       </div>
     )
   }
 
-  return <GridInner cellStates={cellStates} onThemeChange={onThemeChange} onActivity={onActivity} />
+  return <GridInner cellStates={cellStates} onThemeChange={onThemeChange} onActivity={onActivity} gridRows={gridRows} gridCols={gridCols} />
 }

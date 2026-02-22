@@ -15,6 +15,7 @@ export const LANGUAGES = [
 
 interface TopBarProps {
   activeCells: number
+  totalCells: number
   analyzing: boolean
   autoTimer: AutoTimer
   onAutoTimerChange: (value: AutoTimer) => void
@@ -24,6 +25,9 @@ interface TopBarProps {
   onViewModeChange: (mode: ViewMode) => void
   language: string
   onLanguageChange: (lang: string) => void
+  gridRows: number
+  gridCols: number
+  onGridChange: (rows: number, cols: number) => void
 }
 
 const MODE_LABELS: { key: ViewMode; label: string; title: string }[] = [
@@ -33,6 +37,7 @@ const MODE_LABELS: { key: ViewMode; label: string; title: string }[] = [
 
 export default function TopBar({
   activeCells,
+  totalCells,
   analyzing,
   autoTimer,
   onAutoTimerChange,
@@ -42,6 +47,9 @@ export default function TopBar({
   onViewModeChange,
   language,
   onLanguageChange,
+  gridRows,
+  gridCols,
+  onGridChange,
 }: TopBarProps): JSX.Element {
   return (
     <div className="top-bar">
@@ -50,7 +58,7 @@ export default function TopBar({
           CHAOS GRID
         </span>
         <span style={{ fontSize: 11, color: '#666', background: '#1a1a1a', padding: '2px 8px', borderRadius: 4 }}>
-          {activeCells} / 9 ACTIVE
+          {activeCells} / {totalCells} ACTIVE
         </span>
       </div>
 
@@ -77,6 +85,31 @@ export default function TopBar({
           {analyzing ? 'ANALYZING...' : 'STATUS'}
         </button>
       )}
+
+      {/* Grid size */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#888' }}>
+        <select
+          value={gridRows}
+          onChange={(e) => onGridChange(parseInt(e.target.value), gridCols)}
+          title="Grid rows"
+          style={{ width: 44 }}
+        >
+          {[1, 2, 3, 4, 5, 6].map((r) => (
+            <option key={r} value={r}>{r}</option>
+          ))}
+        </select>
+        <span>×</span>
+        <select
+          value={gridCols}
+          onChange={(e) => onGridChange(gridRows, parseInt(e.target.value))}
+          title="Grid cols"
+          style={{ width: 44 }}
+        >
+          {[1, 2, 3, 4, 5].map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </div>
 
       <select
         value={language}

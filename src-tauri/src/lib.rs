@@ -8,7 +8,7 @@ use std::io::Write;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
-const CELL_COUNT: usize = 9;
+const MAX_CELLS: usize = 30; // supports up to 6×5 grid
 const DEFAULT_COLS: u16 = 80;
 const DEFAULT_ROWS: u16 = 24;
 const SHELL_READY_DELAY_MS: u64 = 500;
@@ -54,7 +54,7 @@ fn now_millis() -> u64 {
 fn init_cell_states(app: &tauri::AppHandle) -> HashMap<String, CellState> {
     let saved_outputs = storage::load_cell_outputs(app);
     let mut states = HashMap::new();
-    for i in 0..CELL_COUNT {
+    for i in 0..MAX_CELLS {
         let id = format!("cell-{}", i);
         let last_output = saved_outputs.get(&id).cloned().unwrap_or_default();
         states.insert(
@@ -180,6 +180,7 @@ async fn analyze(
     app: tauri::AppHandle,
     cell_states: tauri::State<'_, CellStateMap>,
     language: Option<String>,
+    cols: Option<u32>,
 ) -> Result<AnalyzeResult, String> {
     let cells: Vec<CellState> = {
         let states = cell_states.0.lock().map_err(|e| e.to_string())?;
@@ -187,8 +188,9 @@ async fn analyze(
     };
 
     let lang = language.as_deref().unwrap_or("English");
+    let cols_count = cols.unwrap_or(3) as usize;
     let history = storage::load_analysis_history(&app);
-    let result = gemini::analyze_cells(&cells, &history, lang).await?;
+    let result = gemini::analyze_cells(&cells, &history, lang, cols_count).await?;
 
     // Save analysis to history
     let themes: HashMap<String, String> = cells.iter().map(|c| (c.id.clone(), c.theme.clone())).collect();
@@ -222,6 +224,69 @@ async fn set_theme(
 }
 
 #[tauri::command]
+async fn launch_cells(
+    app: tauri::AppHandle,
+    sessions: tauri::State<'_, PtySessions>,
+    cell_states: tauri::State<'_, CellStateMap>,
+    cell_ids: Vec<String>,
+) -> Result<Vec<String>, String> {
+    let mut launched = Vec::new();
+
+    for cell_id in &cell_ids {
+        let has_pty = {
+            let map = sessions.0.lock().map_err(|e| e.to_string())?;
+            map.contains_key(cell_id)
+        };
+
+        if !has_pty {
+            {
+                let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
+                if let Some(mut session) = map.remove(cell_id) {
+                    pty_manager::kill(&mut session);
+                }
+            }
+
+            let states_arc = cell_states.0.clone();
+            let session = pty_manager::spawn(
+                app.clone(),
+                cell_id,
+                DEFAULT_COLS,
+                DEFAULT_ROWS,
+                states_arc,
+                app.clone(),
+            )?;
+
+            {
+                let mut states = cell_states.0.lock().map_err(|e| e.to_string())?;
+                if let Some(state) = states.get_mut(cell_id) {
+                    state.pid = Some(session.pid);
+                    state.status = "active".to_string();
+                    state.updated_at = now_millis();
+                }
+            }
+
+            {
+                let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
+                map.insert(cell_id.clone(), session);
+            }
+
+            tokio::time::sleep(tokio::time::Duration::from_millis(SHELL_READY_DELAY_MS)).await;
+        }
+
+        {
+            let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
+            if let Some(session) = map.get_mut(cell_id) {
+                let _ = session.writer.write_all(LAUNCH_COMMAND.as_bytes());
+            }
+        }
+
+        launched.push(cell_id.clone());
+    }
+
+    Ok(launched)
+}
+
+#[tauri::command]
 async fn launch_all(
     app: tauri::AppHandle,
     sessions: tauri::State<'_, PtySessions>,
@@ -229,7 +294,7 @@ async fn launch_all(
 ) -> Result<Vec<String>, String> {
     let mut launched = Vec::new();
 
-    for i in 0..CELL_COUNT {
+    for i in 0..MAX_CELLS {
         let cell_id = format!("cell-{}", i);
 
         // Check if already has a PTY
@@ -359,8 +424,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            spawn_pty, write_pty, resize_pty, kill_pty, analyze, get_cells, set_theme, launch_all,
-            launch_cell
+            spawn_pty, write_pty, resize_pty, kill_pty, analyze, get_cells, set_theme,
+            launch_all, launch_cell, launch_cells
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

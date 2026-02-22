@@ -18,6 +18,12 @@ export default function App(): JSX.Element {
   const [language, setLanguage] = useState<string>(
     () => localStorage.getItem('chaos-grid-language') ?? 'English'
   )
+  const [gridRows, setGridRows] = useState<number>(
+    () => parseInt(localStorage.getItem('chaos-grid-rows') ?? '3', 10)
+  )
+  const [gridCols, setGridCols] = useState<number>(
+    () => parseInt(localStorage.getItem('chaos-grid-cols') ?? '3', 10)
+  )
 
   useEffect(() => {
     invoke<CellState[]>('get_cells').then((arr) => {
@@ -36,16 +42,23 @@ export default function App(): JSX.Element {
     localStorage.setItem('chaos-grid-language', lang)
   }, [])
 
+  const handleGridChange = useCallback((rows: number, cols: number) => {
+    setGridRows(rows)
+    setGridCols(cols)
+    localStorage.setItem('chaos-grid-rows', String(rows))
+    localStorage.setItem('chaos-grid-cols', String(cols))
+  }, [])
+
   const handleAnalyze = useCallback(async () => {
     setAnalyzing(true)
     try {
-      const result = await invoke<AnalyzeResult>('analyze', { language })
+      const result = await invoke<AnalyzeResult>('analyze', { language, cols: gridCols })
       setAnalyzeResult(result)
       setShowStatus(true)
     } finally {
       setAnalyzing(false)
     }
-  }, [language])
+  }, [language, gridCols])
 
   const autoTimerRef = useRef(autoTimer)
   autoTimerRef.current = autoTimer
@@ -57,14 +70,16 @@ export default function App(): JSX.Element {
   }, [autoTimer, handleAnalyze])
 
   const handleLaunchAll = useCallback(async () => {
-    await invoke('launch_all')
-  }, [])
+    const cellIds = Array.from({ length: gridRows * gridCols }, (_, i) => `cell-${i}`)
+    await invoke('launch_cells', { cellIds })
+  }, [gridRows, gridCols])
 
   const handleThemeChange = useCallback((id: string, theme: string) => {
     invoke('set_theme', { cellId: id, theme })
     setCellStates((prev) => ({ ...prev, [id]: { ...prev[id], theme } }))
   }, [])
 
+  const totalCells = gridRows * gridCols
   const activeCells = Object.values(cellActivity).filter(
     (t) => Date.now() - t < 120_000
   ).length
@@ -73,6 +88,7 @@ export default function App(): JSX.Element {
     <>
       <TopBar
         activeCells={activeCells}
+        totalCells={totalCells}
         analyzing={analyzing}
         autoTimer={autoTimer}
         onAutoTimerChange={setAutoTimer}
@@ -82,6 +98,9 @@ export default function App(): JSX.Element {
         onViewModeChange={setViewMode}
         language={language}
         onLanguageChange={handleLanguageChange}
+        gridRows={gridRows}
+        gridCols={gridCols}
+        onGridChange={handleGridChange}
       />
       <Grid
         cellStates={cellStates}
@@ -90,6 +109,8 @@ export default function App(): JSX.Element {
         onThemeChange={handleThemeChange}
         onActivity={handleActivity}
         language={language}
+        gridRows={gridRows}
+        gridCols={gridCols}
       />
       {showStatus && analyzeResult && (
         <StatusOverlay

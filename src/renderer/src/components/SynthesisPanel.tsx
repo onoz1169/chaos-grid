@@ -6,9 +6,10 @@ interface SynthesisPanelProps {
   cellStates: Record<string, CellState>
   cellActivity: Record<string, number>
   language: string
+  cols: number
 }
 
-export default function SynthesisPanel({ cellStates, cellActivity, language }: SynthesisPanelProps): JSX.Element {
+export default function SynthesisPanel({ cellStates, cellActivity, language, cols }: SynthesisPanelProps): JSX.Element {
   const [result, setResult] = useState<AnalyzeResult | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [lastAnalyzed, setLastAnalyzed] = useState<Date | null>(null)
@@ -16,7 +17,7 @@ export default function SynthesisPanel({ cellStates, cellActivity, language }: S
   const analyze = async (): Promise<void> => {
     setAnalyzing(true)
     try {
-      const r = await invoke<AnalyzeResult>('analyze', { language })
+      const r = await invoke<AnalyzeResult>('analyze', { language, cols })
       setResult(r)
       setLastAnalyzed(new Date())
     } finally {
@@ -27,7 +28,7 @@ export default function SynthesisPanel({ cellStates, cellActivity, language }: S
   useEffect(() => {
     const interval = setInterval(analyze, 3 * 60 * 1000)
     return () => clearInterval(interval)
-  }, [language])
+  }, [language, cols])
 
   const now = Date.now()
   const hotCells = Object.entries(cellActivity)

@@ -22,21 +22,27 @@ export interface FlowAnalysis {
 
 export type CellRole = 'Stimulus' | 'Will' | 'Supply'
 
-export function getCellRole(cellId: string): CellRole {
-  const index = CELL_IDS.indexOf(cellId)
-  const col = index % 3
-  if (col === 2) return 'Stimulus'   // 右列
-  if (col === 1) return 'Will'       // 中列
-  return 'Supply'                     // 左列
+export function getCellRole(cellId: string, cols: number = 3): CellRole {
+  const index = parseInt(cellId.replace('cell-', ''), 10)
+  const col = index % cols
+  if (col === cols - 1) return 'Stimulus'
+  if (col === cols - 2 && cols >= 2) return 'Will'
+  return 'Supply'
 }
 
-export const DEFAULT_THEMES = [
-  '', '', '',
-  '', '', '',
-  '', '', '',
-]
+export function getCellIds(rows: number, cols: number): string[] {
+  return Array.from({ length: rows * cols }, (_, i) => `cell-${i}`)
+}
 
-export const CELL_IDS = Array.from({ length: 9 }, (_, i) => `cell-${i}`)
+export function getColLabels(cols: number): string[] {
+  if (cols === 3) return ['Supply', 'Will', 'Stimulus']
+  return Array.from({ length: cols }, (_, i) => {
+    if (i === cols - 1) return 'Stimulus'
+    if (i === cols - 2 && cols >= 2) return 'Will'
+    return `Supply${cols > 3 ? ` ${i + 1}` : ''}`
+  })
+}
 
-// 左→右の列ラベル（Supply・Will・Stimulus）
-export const COL_LABELS: CellRole[] = ['Supply', 'Will', 'Stimulus']
+// kept for backward compat
+export const CELL_IDS = getCellIds(3, 3)
+export const COL_LABELS = getColLabels(3)
