@@ -24,6 +24,9 @@ export default function App(): JSX.Element {
   const [gridCols, setGridCols] = useState<number>(
     () => parseInt(localStorage.getItem('chaos-grid-cols') ?? '3', 10)
   )
+  const [outputDir, setOutputDir] = useState<string>(
+    () => localStorage.getItem('chaos-grid-output-dir') ?? ''
+  )
 
   useEffect(() => {
     invoke<CellState[]>('get_cells').then((arr) => {
@@ -49,6 +52,11 @@ export default function App(): JSX.Element {
     localStorage.setItem('chaos-grid-cols', String(cols))
   }, [])
 
+  const handleOutputDirChange = useCallback((dir: string) => {
+    setOutputDir(dir)
+    localStorage.setItem('chaos-grid-output-dir', dir)
+  }, [])
+
   const handleAnalyze = useCallback(async () => {
     setAnalyzing(true)
     try {
@@ -71,8 +79,8 @@ export default function App(): JSX.Element {
 
   const handleLaunchAll = useCallback(async () => {
     const cellIds = Array.from({ length: gridRows * gridCols }, (_, i) => `cell-${i}`)
-    await invoke('launch_cells', { cellIds })
-  }, [gridRows, gridCols])
+    await invoke('launch_cells', { cellIds, outputDir: outputDir || null })
+  }, [gridRows, gridCols, outputDir])
 
   const handleThemeChange = useCallback((id: string, theme: string) => {
     invoke('set_theme', { cellId: id, theme })
@@ -101,6 +109,8 @@ export default function App(): JSX.Element {
         gridRows={gridRows}
         gridCols={gridCols}
         onGridChange={handleGridChange}
+        outputDir={outputDir}
+        onOutputDirChange={handleOutputDirChange}
       />
       <Grid
         cellStates={cellStates}
@@ -111,6 +121,7 @@ export default function App(): JSX.Element {
         language={language}
         gridRows={gridRows}
         gridCols={gridCols}
+        outputDir={outputDir}
       />
       {showStatus && analyzeResult && (
         <StatusOverlay

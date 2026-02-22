@@ -14,6 +14,29 @@ const DEFAULT_ROWS: u16 = 24;
 const SHELL_READY_DELAY_MS: u64 = 500;
 const LAUNCH_COMMAND: &str = "claude --dangerously-skip-permissions\n";
 
+fn expand_tilde(path: &str) -> String {
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return format!("{}/{}", home.display(), rest);
+        }
+    }
+    path.to_string()
+}
+
+fn make_launch_command(cell_id: &str, output_dir: Option<&str>) -> String {
+    match output_dir {
+        Some(dir) if !dir.trim().is_empty() => {
+            let expanded = expand_tilde(dir);
+            let cell_dir = format!("{}/{}", expanded, cell_id);
+            format!(
+                "mkdir -p '{}' && cd '{}' && claude --dangerously-skip-permissions\n",
+                cell_dir, cell_dir
+            )
+        }
+        _ => LAUNCH_COMMAND.to_string(),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CellState {
@@ -229,6 +252,7 @@ async fn launch_cells(
     sessions: tauri::State<'_, PtySessions>,
     cell_states: tauri::State<'_, CellStateMap>,
     cell_ids: Vec<String>,
+    output_dir: Option<String>,
 ) -> Result<Vec<String>, String> {
     let mut launched = Vec::new();
 
@@ -274,9 +298,10 @@ async fn launch_cells(
         }
 
         {
+            let cmd = make_launch_command(cell_id, output_dir.as_deref());
             let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
             if let Some(session) = map.get_mut(cell_id) {
-                let _ = session.writer.write_all(LAUNCH_COMMAND.as_bytes());
+                let _ = session.writer.write_all(cmd.as_bytes());
             }
         }
 
@@ -360,6 +385,7 @@ async fn launch_cell(
     sessions: tauri::State<'_, PtySessions>,
     cell_states: tauri::State<'_, CellStateMap>,
     cell_id: String,
+    output_dir: Option<String>,
 ) -> Result<(), String> {
     let has_pty = {
         let map = sessions.0.lock().map_err(|e| e.to_string())?;
@@ -403,13 +429,61 @@ async fn launch_cell(
 
     // Send launch command
     {
+        let cmd = make_launch_command(&cell_id, output_dir.as_deref());
         let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
         if let Some(session) = map.get_mut(&cell_id) {
-            let _ = session.writer.write_all(LAUNCH_COMMAND.as_bytes());
+            let _ = session.writer.write_all(cmd.as_bytes());
         }
     }
 
     Ok(())
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileEntry {
+    pub name: String,
+    pub path: String,
+    pub modified_ms: u64,
+    pub size_bytes: u64,
+    pub is_dir: bool,
+}
+
+#[tauri::command]
+async fn list_dir_files(path: String) -> Result<Vec<FileEntry>, String> {
+    use std::time::UNIX_EPOCH;
+    let entries = std::fs::read_dir(&path).map_err(|e| format!("{}: {}", path, e))?;
+    let mut files: Vec<FileEntry> = entries
+        .filter_map(|e| e.ok())
+        .filter_map(|entry| {
+            let meta = entry.metadata().ok()?;
+            let modified_ms = meta
+                .modified()
+                .ok()?
+                .duration_since(UNIX_EPOCH)
+                .ok()?
+                .as_millis() as u64;
+            Some(FileEntry {
+                name: entry.file_name().to_string_lossy().to_string(),
+                path: entry.path().to_string_lossy().to_string(),
+                modified_ms,
+                size_bytes: meta.len(),
+                is_dir: meta.is_dir(),
+            })
+        })
+        .collect();
+    files.sort_by(|a, b| b.modified_ms.cmp(&a.modified_ms));
+    files.truncate(200);
+    Ok(files)
+}
+
+#[tauri::command]
+async fn read_file_content(path: String) -> Result<String, String> {
+    let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+    if meta.len() > 2_000_000 {
+        return Err("File too large (>2MB)".to_string());
+    }
+    std::fs::read_to_string(&path).map_err(|e| e.to_string())
 }
 
 pub fn run() {
@@ -425,7 +499,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             spawn_pty, write_pty, resize_pty, kill_pty, analyze, get_cells, set_theme,
-            launch_all, launch_cell, launch_cells
+            launch_all, launch_cell, launch_cells, list_dir_files, read_file_content
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

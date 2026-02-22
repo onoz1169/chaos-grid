@@ -4,8 +4,9 @@ import { getCellIds, getColLabels } from '../../../shared/types'
 import Cell from './Cell'
 import SynthesisPanel from './SynthesisPanel'
 import OutputView from './OutputView'
+import FilesView from './FilesView'
 
-export type ViewMode = 'grid' | 'command' | 'output'
+export type ViewMode = 'grid' | 'command' | 'output' | 'files'
 
 interface GridProps {
   cellStates: Record<string, CellState>
@@ -16,6 +17,7 @@ interface GridProps {
   language: string
   gridRows: number
   gridCols: number
+  outputDir: string
 }
 
 const COL_COLORS: Record<string, string> = {
@@ -28,13 +30,14 @@ function getColColor(label: string): string {
   return COL_COLORS[label] ?? '#888'
 }
 
-function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, gridCols }: {
+function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, gridCols, outputDir }: {
   cellStates: Record<string, CellState>
   onThemeChange: (id: string, theme: string) => void
   onActivity: (id: string) => void
   compact?: boolean
   gridRows: number
   gridCols: number
+  outputDir: string
 }): JSX.Element {
   const cellIds = getCellIds(gridRows, gridCols)
   const colLabels = getColLabels(gridCols)
@@ -61,6 +64,7 @@ function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, g
             onThemeChange={onThemeChange}
             onActivity={onActivity}
             compact={compact}
+            outputDir={outputDir}
           />
         ))}
       </div>
@@ -68,21 +72,25 @@ function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, g
   )
 }
 
-export default function Grid({ cellStates, cellActivity, viewMode, onThemeChange, onActivity, language, gridRows, gridCols }: GridProps): JSX.Element {
+export default function Grid({ cellStates, cellActivity, viewMode, onThemeChange, onActivity, language, gridRows, gridCols, outputDir }: GridProps): JSX.Element {
   if (viewMode === 'output') {
     return <OutputView cellStates={cellStates} gridRows={gridRows} gridCols={gridCols} />
+  }
+
+  if (viewMode === 'files') {
+    return <FilesView cellStates={cellStates} gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} />
   }
 
   if (viewMode === 'command') {
     return (
       <div className="command-layout">
         <div className="command-terminals">
-          <GridInner cellStates={cellStates} onThemeChange={onThemeChange} onActivity={onActivity} compact gridRows={gridRows} gridCols={gridCols} />
+          <GridInner cellStates={cellStates} onThemeChange={onThemeChange} onActivity={onActivity} compact gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} />
         </div>
         <SynthesisPanel cellStates={cellStates} cellActivity={cellActivity} language={language} cols={gridCols} />
       </div>
     )
   }
 
-  return <GridInner cellStates={cellStates} onThemeChange={onThemeChange} onActivity={onActivity} gridRows={gridRows} gridCols={gridCols} />
+  return <GridInner cellStates={cellStates} onThemeChange={onThemeChange} onActivity={onActivity} gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} />
 }

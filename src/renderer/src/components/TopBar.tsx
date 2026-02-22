@@ -28,11 +28,14 @@ interface TopBarProps {
   gridRows: number
   gridCols: number
   onGridChange: (rows: number, cols: number) => void
+  outputDir: string
+  onOutputDirChange: (dir: string) => void
 }
 
 const MODE_LABELS: { key: ViewMode; label: string; title: string }[] = [
   { key: 'grid',    label: '⊞ GRID',    title: 'Equal-size terminal grid' },
   { key: 'output',  label: '◉ OUTPUT',  title: 'All terminal outputs at a glance' },
+  { key: 'files',   label: '📁 FILES',  title: 'Browse AI output files per cell' },
   { key: 'command', label: '⌘ COMMAND', title: 'Always-on command panel' },
 ]
 
@@ -51,6 +54,8 @@ export default function TopBar({
   gridRows,
   gridCols,
   onGridChange,
+  outputDir,
+  onOutputDirChange,
 }: TopBarProps): JSX.Element {
   return (
     <div className="top-bar">
@@ -111,6 +116,22 @@ export default function TopBar({
           ))}
         </select>
       </div>
+
+      {/* Output directory */}
+      <input
+        type="text"
+        value={outputDir}
+        onChange={(e) => onOutputDirChange(e.target.value)}
+        placeholder="~/chaos-grid-output"
+        title="Output directory for AI-generated files"
+        style={{
+          background: '#1a1a1a', border: '1px solid #333', color: '#888',
+          fontFamily: 'monospace', fontSize: 10, padding: '2px 6px',
+          outline: 'none', width: 160, borderRadius: 3,
+        }}
+        onFocus={(e) => (e.currentTarget.style.borderColor = '#555')}
+        onBlur={(e) => (e.currentTarget.style.borderColor = '#333')}
+      />
 
       <select
         value={language}
