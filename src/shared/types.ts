@@ -31,9 +31,9 @@ export function getCellRole(cellId: string): CellRole {
 }
 
 export const DEFAULT_THEMES = [
-  '作る', '考える', '読む',       // row0: 供給, 意志, 刺激
-  '動かす', '整理', '見る',       // row1
-  '出す', '決める', '聴く',       // row2
+  '', '', '',
+  '', '', '',
+  '', '', '',
 ]
 
 export const CELL_IDS = Array.from({ length: 9 }, (_, i) => `cell-${i}`)
