@@ -69,14 +69,6 @@ function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, g
 }
 
 export default function Grid({ cellStates, cellActivity, viewMode, onThemeChange, onActivity, language, gridRows, gridCols, outputDir }: GridProps): JSX.Element {
-  if (viewMode === 'output') {
-    return <OutputView cellStates={cellStates} gridRows={gridRows} gridCols={gridCols} />
-  }
-
-  if (viewMode === 'files') {
-    return <FilesView cellStates={cellStates} gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} />
-  }
-
   if (viewMode === 'command') {
     return (
       <div className="command-layout">
@@ -88,5 +80,15 @@ export default function Grid({ cellStates, cellActivity, viewMode, onThemeChange
     )
   }
 
-  return <GridInner cellStates={cellStates} onThemeChange={onThemeChange} onActivity={onActivity} gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} />
+  // Keep GridInner mounted during output/files views to preserve terminal sessions.
+  // Use display:none instead of unmounting to prevent spawn_pty from resetting the shell.
+  return (
+    <>
+      <div style={{ display: viewMode === 'grid' ? undefined : 'none' }}>
+        <GridInner cellStates={cellStates} onThemeChange={onThemeChange} onActivity={onActivity} gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} />
+      </div>
+      {viewMode === 'output' && <OutputView cellStates={cellStates} gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} />}
+      {viewMode === 'files' && <FilesView cellStates={cellStates} gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} />}
+    </>
+  )
 }

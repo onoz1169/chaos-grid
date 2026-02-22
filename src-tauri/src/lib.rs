@@ -401,6 +401,60 @@ async fn list_dir_files(path: String) -> Result<Vec<FileEntry>, String> {
 }
 
 #[tauri::command]
+async fn list_dir_files_recursive(path: String) -> Result<Vec<FileEntry>, String> {
+    use std::time::UNIX_EPOCH;
+    let expanded = expand_tilde(&path);
+    let root = std::path::Path::new(&expanded);
+    let mut files: Vec<FileEntry> = Vec::new();
+
+    fn walk(root: &std::path::Path, dir: &std::path::Path, files: &mut Vec<FileEntry>) {
+        let entries = match std::fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+        for entry in entries.filter_map(|e| e.ok()) {
+            let path = entry.path();
+            // Skip hidden directories (including .git)
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str.starts_with('.') {
+                continue;
+            }
+            let meta = match entry.metadata() {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            if meta.is_dir() {
+                walk(root, &path, files);
+            } else {
+                let modified_ms = meta
+                    .modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                    .map(|d| d.as_millis() as u64)
+                    .unwrap_or(0);
+                // Use path relative to root as display name
+                let rel = path.strip_prefix(root).unwrap_or(&path);
+                files.push(FileEntry {
+                    name: rel.to_string_lossy().to_string(),
+                    path: path.to_string_lossy().to_string(),
+                    modified_ms,
+                    size_bytes: meta.len(),
+                    is_dir: false,
+                });
+            }
+        }
+    }
+
+    if root.exists() {
+        walk(root, root, &mut files);
+    }
+    files.sort_by(|a, b| b.modified_ms.cmp(&a.modified_ms));
+    files.truncate(500);
+    Ok(files)
+}
+
+#[tauri::command]
 async fn read_file_content(path: String) -> Result<String, String> {
     let expanded = expand_tilde(&path);
     let meta = std::fs::metadata(&expanded).map_err(|e| e.to_string())?;
@@ -423,7 +477,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             spawn_pty, write_pty, resize_pty, kill_pty, analyze, get_cells, set_theme,
-            launch_all, launch_cell, launch_cells, list_dir_files, read_file_content
+            launch_all, launch_cell, launch_cells, list_dir_files, list_dir_files_recursive, read_file_content
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -71,6 +71,7 @@ export default function Cell({ cellState, onThemeChange, onActivity, compact = f
     })
 
     const resizeObserver = new ResizeObserver(() => {
+      if (!terminalRef.current || terminalRef.current.offsetWidth === 0 || terminalRef.current.offsetHeight === 0) return
       fitAddon.fit()
       invoke('resize_pty', { cellId: cellState.id, cols: term.cols, rows: term.rows })
     })

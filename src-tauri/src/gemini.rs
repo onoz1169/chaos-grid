@@ -53,7 +53,11 @@ fn format_cells(cells: &[&CellState]) -> String {
         .iter()
         .map(|c| {
             let output = if c.last_output.len() > 600 {
-                &c.last_output[c.last_output.len() - 600..]
+                let mut start = c.last_output.len() - 600;
+                while !c.last_output.is_char_boundary(start) {
+                    start += 1;
+                }
+                &c.last_output[start..]
             } else {
                 &c.last_output
             };

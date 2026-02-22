@@ -94,7 +94,10 @@ pub fn spawn(
                         let mut b = buffer_clone.lock().unwrap();
                         b.push_str(&data);
                         if b.len() > BUFFER_LIMIT * 2 {
-                            let start = b.len() - BUFFER_LIMIT;
+                            let mut start = b.len() - BUFFER_LIMIT;
+                            while !b.is_char_boundary(start) {
+                                start += 1;
+                            }
                             *b = b[start..].to_string();
                         }
                     }
