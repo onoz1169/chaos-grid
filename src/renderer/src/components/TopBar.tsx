@@ -14,9 +14,8 @@ interface TopBarProps {
 }
 
 const MODE_LABELS: { key: ViewMode; label: string; title: string }[] = [
-  { key: 'grid',     label: '⊞ GRID',     title: '等サイズ 3×3' },
-  { key: 'organism', label: '◉ ORGANISM', title: '活動量でセルが拡縮' },
-  { key: 'command',  label: '⌘ COMMAND',  title: '司令塔パネル常時表示' },
+  { key: 'grid',    label: '⊞ GRID',    title: '等サイズ 3×3' },
+  { key: 'command', label: '⌘ COMMAND', title: '司令塔パネル常時表示' },
 ]
 
 export default function TopBar({

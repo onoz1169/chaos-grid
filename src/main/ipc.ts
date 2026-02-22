@@ -2,16 +2,18 @@ import { BrowserWindow, ipcMain } from 'electron'
 import { CellState, DEFAULT_THEMES, CELL_IDS } from '../shared/types'
 import { spawnPty, writePty, resizePty, killPty, getBuffer, hasPty, sendCommand } from './ptyManager'
 import { analyzeCells } from './gemini'
+import { loadCellOutputs, saveCellOutput, loadAnalysisHistory, saveAnalysis } from './storage'
 
 const cellStates = new Map<string, CellState>()
 
 function initCellStates(): void {
+  const savedOutputs = loadCellOutputs()
   CELL_IDS.forEach((id, i) => {
     cellStates.set(id, {
       id,
       theme: DEFAULT_THEMES[i] || 'General',
       pid: null,
-      lastOutput: '',
+      lastOutput: savedOutputs[id] || '',  // restore previous output
       status: 'idle',
       updatedAt: Date.now()
     })
@@ -29,6 +31,8 @@ export function setupIPC(mainWindow: BrowserWindow): void {
         state.lastOutput = getBuffer(cellId)
         state.status = 'active'
         state.updatedAt = Date.now()
+        // persist output every time buffer updates
+        saveCellOutput(cellId, state.lastOutput)
       }
     })
 
@@ -62,7 +66,15 @@ export function setupIPC(mainWindow: BrowserWindow): void {
 
   ipcMain.handle('chaos:analyze', async () => {
     const cells = Array.from(cellStates.values())
-    return analyzeCells(cells)
+    const history = loadAnalysisHistory()
+    const result = await analyzeCells(cells, history)
+
+    // Save this analysis to history
+    const themes: Record<string, string> = {}
+    cells.forEach((c) => { themes[c.id] = c.theme })
+    saveAnalysis(result, themes)
+
+    return result
   })
 
   ipcMain.handle('chaos:get-cells', async () => {
@@ -91,6 +103,7 @@ export function setupIPC(mainWindow: BrowserWindow): void {
           state.lastOutput = getBuffer(cellId)
           state.status = 'active'
           state.updatedAt = Date.now()
+          saveCellOutput(cellId, state.lastOutput)
         }
       })
       const state = cellStates.get(cellId)
