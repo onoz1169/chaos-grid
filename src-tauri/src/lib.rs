@@ -23,14 +23,13 @@ fn expand_tilde(path: &str) -> String {
     path.to_string()
 }
 
-fn make_launch_command(cell_id: &str, output_dir: Option<&str>) -> String {
-    match output_dir {
+fn make_launch_command(work_dir: Option<&str>) -> String {
+    match work_dir {
         Some(dir) if !dir.trim().is_empty() => {
             let expanded = expand_tilde(dir);
-            let cell_dir = format!("{}/{}", expanded, cell_id);
             format!(
                 "mkdir -p '{}' && cd '{}' && claude --dangerously-skip-permissions\n",
-                cell_dir, cell_dir
+                expanded, expanded
             )
         }
         _ => LAUNCH_COMMAND.to_string(),
@@ -252,11 +251,11 @@ async fn launch_cells(
     sessions: tauri::State<'_, PtySessions>,
     cell_states: tauri::State<'_, CellStateMap>,
     cell_ids: Vec<String>,
-    output_dir: Option<String>,
+    work_dirs: Vec<String>,
 ) -> Result<Vec<String>, String> {
     let mut launched = Vec::new();
 
-    for cell_id in &cell_ids {
+    for (idx, cell_id) in cell_ids.iter().enumerate() {
         let has_pty = {
             let map = sessions.0.lock().map_err(|e| e.to_string())?;
             map.contains_key(cell_id)
@@ -298,7 +297,8 @@ async fn launch_cells(
         }
 
         {
-            let cmd = make_launch_command(cell_id, output_dir.as_deref());
+            let work_dir = work_dirs.get(idx).map(|s| s.as_str());
+            let cmd = make_launch_command(work_dir);
             let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
             if let Some(session) = map.get_mut(cell_id) {
                 let _ = session.writer.write_all(cmd.as_bytes());
@@ -385,7 +385,7 @@ async fn launch_cell(
     sessions: tauri::State<'_, PtySessions>,
     cell_states: tauri::State<'_, CellStateMap>,
     cell_id: String,
-    output_dir: Option<String>,
+    work_dir: Option<String>,
 ) -> Result<(), String> {
     let has_pty = {
         let map = sessions.0.lock().map_err(|e| e.to_string())?;
@@ -429,7 +429,7 @@ async fn launch_cell(
 
     // Send launch command
     {
-        let cmd = make_launch_command(&cell_id, output_dir.as_deref());
+        let cmd = make_launch_command(work_dir.as_deref());
         let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
         if let Some(session) = map.get_mut(&cell_id) {
             let _ = session.writer.write_all(cmd.as_bytes());

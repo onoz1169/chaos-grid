@@ -13,10 +13,10 @@ interface CellProps {
   onActivity: (id: string) => void
   heat?: number
   compact?: boolean
-  outputDir?: string
+  workDir?: string
 }
 
-export default function Cell({ cellState, onThemeChange, onActivity, heat = 1, compact = false, outputDir }: CellProps): JSX.Element {
+export default function Cell({ cellState, onThemeChange, onActivity, heat = 1, compact = false, workDir }: CellProps): JSX.Element {
   const terminalRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const spawnedRef = useRef(false)
@@ -92,7 +92,7 @@ export default function Cell({ cellState, onThemeChange, onActivity, heat = 1, c
   }, [cellState.id])
 
   const handleLaunch = (): void => {
-    invoke('launch_cell', { cellId: cellState.id, outputDir: outputDir || null })
+    invoke('launch_cell', { cellId: cellState.id, workDir: workDir || null })
   }
 
   const handleKill = (): void => {

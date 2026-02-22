@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, type JSX } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { CellState, AnalyzeResult } from '../../shared/types'
+import { getCellIds, getCellRole } from '../../shared/types'
 import TopBar from './components/TopBar'
 import Grid, { type ViewMode } from './components/Grid'
 import StatusOverlay from './components/StatusOverlay'
@@ -78,9 +79,16 @@ export default function App(): JSX.Element {
   }, [autoTimer, handleAnalyze])
 
   const handleLaunchAll = useCallback(async () => {
-    const cellIds = Array.from({ length: gridRows * gridCols }, (_, i) => `cell-${i}`)
-    await invoke('launch_cells', { cellIds, outputDir: outputDir || null })
-  }, [gridRows, gridCols, outputDir])
+    const cellIds = getCellIds(gridRows, gridCols)
+    const base = outputDir.replace(/\/$/, '')
+    const workDirs = cellIds.map((id) => {
+      const theme = cellStates[id]?.theme
+      const role = getCellRole(id, gridCols).toLowerCase()
+      const folderName = theme || role
+      return `${base}/${folderName}`
+    })
+    await invoke('launch_cells', { cellIds, workDirs })
+  }, [gridRows, gridCols, outputDir, cellStates])
 
   const handleThemeChange = useCallback((id: string, theme: string) => {
     invoke('set_theme', { cellId: id, theme })

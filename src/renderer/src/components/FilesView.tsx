@@ -3,6 +3,13 @@ import { invoke } from '@tauri-apps/api/core'
 import type { CellState } from '../../../shared/types'
 import { getCellIds, getCellRole } from '../../../shared/types'
 
+function cellWorkDir(cellId: string, cellState: CellState | undefined, outputDir: string, gridCols: number): string {
+  const theme = cellState?.theme
+  const role = getCellRole(cellId, gridCols).toLowerCase()
+  const folderName = theme || role
+  return `${outputDir.replace(/\/$/, '')}/${folderName}`
+}
+
 interface FileEntry {
   name: string
   path: string
@@ -122,7 +129,7 @@ function CellFilesPanel({ cellId, cellState, outputDir, gridCols }: CellFilesPan
   const [error, setError] = useState<string | null>(null)
   const [openFile, setOpenFile] = useState<string | null>(null)
 
-  const cellDir = `${outputDir.replace(/\/$/, '')}/${cellId}`
+  const cellDir = cellWorkDir(cellId, cellState, outputDir, gridCols)
   const role = getCellRole(cellId, gridCols)
   const color = ROLE_COLORS[role] ?? '#888'
 
