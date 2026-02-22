@@ -1,7 +1,5 @@
 node_modules/
-vendor/
-.venv/
-__pycache__/
+out/
 dist/
 build/
 .DS_Store
@@ -10,3 +8,4 @@ build/
 *.pem
 *.key
 *.log
+npm-debug.log*
