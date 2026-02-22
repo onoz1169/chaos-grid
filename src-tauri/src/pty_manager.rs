@@ -113,7 +113,7 @@ pub fn spawn(
                         if let Some(state) = states.get_mut(&cell_id_for_state) {
                             state.last_output = buffer_content.clone();
                             state.status = "active".to_string();
-                            state.updated_at = now_millis();
+                            state.updated_at = crate::now_millis();
                         }
                         drop(states);
 
@@ -155,10 +155,3 @@ pub fn kill(session: &mut PtySession) {
     let _ = session.child.kill();
 }
 
-fn now_millis() -> u64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
-}

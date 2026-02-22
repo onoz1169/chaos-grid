@@ -136,6 +136,8 @@ export default function App(): JSX.Element {
           result={analyzeResult}
           cellStates={cellStates}
           onClose={() => setShowStatus(false)}
+          gridRows={gridRows}
+          gridCols={gridCols}
         />
       )}
     </>

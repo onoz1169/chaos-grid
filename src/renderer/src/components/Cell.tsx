@@ -11,20 +11,14 @@ interface CellProps {
   cellState: CellState
   onThemeChange: (id: string, theme: string) => void
   onActivity: (id: string) => void
-  heat?: number
   compact?: boolean
   workDir?: string
 }
 
-export default function Cell({ cellState, onThemeChange, onActivity, heat = 1, compact = false, workDir }: CellProps): JSX.Element {
+export default function Cell({ cellState, onThemeChange, onActivity, compact = false, workDir }: CellProps): JSX.Element {
   const terminalRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const spawnedRef = useRef(false)
-
-  const borderColor =
-    heat >= 4 ? '#00ff88' :
-    heat >= 2 ? '#ffcc00' :
-    heat >= 1 ? '#333' : '#1a1a1a'
 
   useEffect(() => {
     if (!terminalRef.current || termRef.current) return
@@ -102,7 +96,7 @@ export default function Cell({ cellState, onThemeChange, onActivity, heat = 1, c
   return (
     <div
       className="cell"
-      style={{ borderLeft: `2px solid ${borderColor}`, transition: 'border-color 1s ease' }}
+      style={{ borderLeft: `2px solid #333`, transition: 'border-color 1s ease' }}
     >
       <CellHeader
         cellState={cellState}

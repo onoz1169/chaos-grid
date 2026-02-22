@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type JSX } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import type { CellState } from '../../../shared/types'
-import { getCellIds, getCellRole } from '../../../shared/types'
+import { getCellIds, getCellRole, roleColor } from '../../../shared/types'
 
 // eslint-disable-next-line no-control-regex
 const ANSI_RE = /[\x1b\x9b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\r/g
@@ -13,12 +13,6 @@ function stripAnsi(str: string): string {
 function tailLines(raw: string, n: number): string {
   const lines = stripAnsi(raw).split('\n')
   return lines.slice(-n).join('\n').trimStart()
-}
-
-const ROLE_COLORS: Record<string, string> = {
-  Stimulus: '#4488bb',
-  Will: '#bb8844',
-  Supply: '#00ff88',
 }
 
 interface OutputViewProps {
@@ -73,7 +67,7 @@ export default function OutputView({ cellStates, gridRows, gridCols }: OutputVie
       {cellIds.map((id) => {
         const state = cellStates[id]
         const role = getCellRole(id, gridCols)
-        const color = ROLE_COLORS[role] ?? '#888'
+        const color = roleColor(role)
         const content = tailLines(outputs[id] ?? '', 60)
         const statusColor =
           state?.status === 'active' ? '#00ff88' :

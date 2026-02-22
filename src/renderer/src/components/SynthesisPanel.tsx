@@ -1,4 +1,4 @@
-import { useState, useEffect, type JSX } from 'react'
+import { useState, useEffect, useCallback, type JSX } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { CellState, AnalyzeResult } from '../../../shared/types'
 
@@ -14,7 +14,7 @@ export default function SynthesisPanel({ cellStates, cellActivity, language, col
   const [analyzing, setAnalyzing] = useState(false)
   const [lastAnalyzed, setLastAnalyzed] = useState<Date | null>(null)
 
-  const analyze = async (): Promise<void> => {
+  const analyze = useCallback(async (): Promise<void> => {
     setAnalyzing(true)
     try {
       const r = await invoke<AnalyzeResult>('analyze', { language, cols })
@@ -23,12 +23,12 @@ export default function SynthesisPanel({ cellStates, cellActivity, language, col
     } finally {
       setAnalyzing(false)
     }
-  }
+  }, [language, cols])
 
   useEffect(() => {
     const interval = setInterval(analyze, 3 * 60 * 1000)
     return () => clearInterval(interval)
-  }, [language, cols])
+  }, [analyze])
 
   const now = Date.now()
   const hotCells = Object.entries(cellActivity)

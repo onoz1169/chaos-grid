@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import type { CellState } from '../../../shared/types'
-import { getCellIds, getColLabels, getCellRole } from '../../../shared/types'
+import { getCellIds, getColLabels, getCellRole, roleColor } from '../../../shared/types'
 import Cell from './Cell'
 import SynthesisPanel from './SynthesisPanel'
 import OutputView from './OutputView'
@@ -18,16 +18,6 @@ interface GridProps {
   gridRows: number
   gridCols: number
   outputDir: string
-}
-
-const COL_COLORS: Record<string, string> = {
-  'Supply': '#00ff88',
-  'Will': '#bb8844',
-  'Stimulus': '#4488bb',
-}
-
-function getColColor(label: string): string {
-  return COL_COLORS[label] ?? '#888'
 }
 
 function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, gridCols, outputDir }: {
@@ -50,7 +40,7 @@ function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, g
     <div className="flow-grid-wrapper">
       <div className="col-headers" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
         {colLabels.map((label, i) => (
-          <div key={i} className="col-header" style={{ color: getColColor(label), borderBottom: `1px solid ${getColColor(label)}44` }}>
+          <div key={i} className="col-header" style={{ color: roleColor(label), borderBottom: `1px solid ${roleColor(label)}44` }}>
             {label}
           </div>
         ))}

@@ -14,6 +14,7 @@ const DEFAULT_ROWS: u16 = 24;
 const SHELL_READY_DELAY_MS: u64 = 500;
 const LAUNCH_COMMAND: &str = "claude --dangerously-skip-permissions\n";
 
+// Used for filesystem operations only — not for shell commands (the shell expands ~ itself).
 fn expand_tilde(path: &str) -> String {
     if let Some(rest) = path.strip_prefix("~/") {
         if let Some(home) = dirs::home_dir() {
@@ -65,7 +66,7 @@ pub struct FlowAnalysis {
 struct PtySessions(Mutex<HashMap<String, pty_manager::PtySession>>);
 struct CellStateMap(Arc<Mutex<HashMap<String, CellState>>>);
 
-fn now_millis() -> u64 {
+pub(crate) fn now_millis() -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -245,6 +246,74 @@ async fn set_theme(
     Ok(())
 }
 
+/// Shared core of the three launch commands.
+///
+/// If no PTY exists for `cell_id` yet, spawns one and waits for the shell to
+/// be ready. Then writes the appropriate launch command into the PTY.
+async fn spawn_and_launch(
+    app: &tauri::AppHandle,
+    sessions: &PtySessions,
+    cell_states: &CellStateMap,
+    cell_id: &str,
+    work_dir: Option<&str>,
+) -> Result<(), String> {
+    // Spawn a new PTY only when the cell does not already have one.
+    let has_pty = {
+        let map = sessions.0.lock().map_err(|e| e.to_string())?;
+        map.contains_key(cell_id)
+    };
+
+    if !has_pty {
+        // Kill any stale session that might linger in the map.
+        {
+            let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
+            if let Some(mut session) = map.remove(cell_id) {
+                pty_manager::kill(&mut session);
+            }
+        }
+
+        let states_arc = cell_states.0.clone();
+        let session = pty_manager::spawn(
+            app.clone(),
+            cell_id,
+            DEFAULT_COLS,
+            DEFAULT_ROWS,
+            states_arc,
+            app.clone(),
+        )?;
+
+        // Update cell state with the new PID.
+        {
+            let mut states = cell_states.0.lock().map_err(|e| e.to_string())?;
+            if let Some(state) = states.get_mut(cell_id) {
+                state.pid = Some(session.pid);
+                state.status = "active".to_string();
+                state.updated_at = now_millis();
+            }
+        }
+
+        // Store the live session.
+        {
+            let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
+            map.insert(cell_id.to_string(), session);
+        }
+
+        // Wait for the shell to be ready before sending commands.
+        tokio::time::sleep(tokio::time::Duration::from_millis(SHELL_READY_DELAY_MS)).await;
+    }
+
+    // Send the launch command into the PTY.
+    {
+        let cmd = make_launch_command(work_dir);
+        let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
+        if let Some(session) = map.get_mut(cell_id) {
+            let _ = session.writer.write_all(cmd.as_bytes());
+        }
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 async fn launch_cells(
     app: tauri::AppHandle,
@@ -256,55 +325,8 @@ async fn launch_cells(
     let mut launched = Vec::new();
 
     for (idx, cell_id) in cell_ids.iter().enumerate() {
-        let has_pty = {
-            let map = sessions.0.lock().map_err(|e| e.to_string())?;
-            map.contains_key(cell_id)
-        };
-
-        if !has_pty {
-            {
-                let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
-                if let Some(mut session) = map.remove(cell_id) {
-                    pty_manager::kill(&mut session);
-                }
-            }
-
-            let states_arc = cell_states.0.clone();
-            let session = pty_manager::spawn(
-                app.clone(),
-                cell_id,
-                DEFAULT_COLS,
-                DEFAULT_ROWS,
-                states_arc,
-                app.clone(),
-            )?;
-
-            {
-                let mut states = cell_states.0.lock().map_err(|e| e.to_string())?;
-                if let Some(state) = states.get_mut(cell_id) {
-                    state.pid = Some(session.pid);
-                    state.status = "active".to_string();
-                    state.updated_at = now_millis();
-                }
-            }
-
-            {
-                let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
-                map.insert(cell_id.clone(), session);
-            }
-
-            tokio::time::sleep(tokio::time::Duration::from_millis(SHELL_READY_DELAY_MS)).await;
-        }
-
-        {
-            let work_dir = work_dirs.get(idx).map(|s| s.as_str());
-            let cmd = make_launch_command(work_dir);
-            let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
-            if let Some(session) = map.get_mut(cell_id) {
-                let _ = session.writer.write_all(cmd.as_bytes());
-            }
-        }
-
+        let work_dir = work_dirs.get(idx).map(|s| s.as_str());
+        spawn_and_launch(&app, &sessions, &cell_states, cell_id, work_dir).await?;
         launched.push(cell_id.clone());
     }
 
@@ -321,58 +343,7 @@ async fn launch_all(
 
     for i in 0..MAX_CELLS {
         let cell_id = format!("cell-{}", i);
-
-        // Check if already has a PTY
-        let has_pty = {
-            let map = sessions.0.lock().map_err(|e| e.to_string())?;
-            map.contains_key(&cell_id)
-        };
-
-        if !has_pty {
-            // Kill any existing session first
-            {
-                let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
-                if let Some(mut session) = map.remove(&cell_id) {
-                    pty_manager::kill(&mut session);
-                }
-            }
-
-            let states_arc = cell_states.0.clone();
-            let session = pty_manager::spawn(
-                app.clone(),
-                &cell_id,
-                DEFAULT_COLS,
-                DEFAULT_ROWS,
-                states_arc,
-                app.clone(),
-            )?;
-
-            {
-                let mut states = cell_states.0.lock().map_err(|e| e.to_string())?;
-                if let Some(state) = states.get_mut(&cell_id) {
-                    state.pid = Some(session.pid);
-                    state.status = "active".to_string();
-                    state.updated_at = now_millis();
-                }
-            }
-
-            {
-                let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
-                map.insert(cell_id.clone(), session);
-            }
-
-            // Wait for shell to be ready
-            tokio::time::sleep(tokio::time::Duration::from_millis(SHELL_READY_DELAY_MS)).await;
-        }
-
-        // Send launch command
-        {
-            let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
-            if let Some(session) = map.get_mut(&cell_id) {
-                let _ = session.writer.write_all(LAUNCH_COMMAND.as_bytes());
-            }
-        }
-
+        spawn_and_launch(&app, &sessions, &cell_states, &cell_id, None).await?;
         launched.push(cell_id);
     }
 
@@ -387,56 +358,7 @@ async fn launch_cell(
     cell_id: String,
     work_dir: Option<String>,
 ) -> Result<(), String> {
-    let has_pty = {
-        let map = sessions.0.lock().map_err(|e| e.to_string())?;
-        map.contains_key(&cell_id)
-    };
-
-    if !has_pty {
-        {
-            let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
-            if let Some(mut session) = map.remove(&cell_id) {
-                pty_manager::kill(&mut session);
-            }
-        }
-
-        let states_arc = cell_states.0.clone();
-        let session = pty_manager::spawn(
-            app.clone(),
-            &cell_id,
-            DEFAULT_COLS,
-            DEFAULT_ROWS,
-            states_arc,
-            app.clone(),
-        )?;
-
-        {
-            let mut states = cell_states.0.lock().map_err(|e| e.to_string())?;
-            if let Some(state) = states.get_mut(&cell_id) {
-                state.pid = Some(session.pid);
-                state.status = "active".to_string();
-                state.updated_at = now_millis();
-            }
-        }
-
-        {
-            let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
-            map.insert(cell_id.clone(), session);
-        }
-
-        tokio::time::sleep(tokio::time::Duration::from_millis(SHELL_READY_DELAY_MS)).await;
-    }
-
-    // Send launch command
-    {
-        let cmd = make_launch_command(work_dir.as_deref());
-        let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
-        if let Some(session) = map.get_mut(&cell_id) {
-            let _ = session.writer.write_all(cmd.as_bytes());
-        }
-    }
-
-    Ok(())
+    spawn_and_launch(&app, &sessions, &cell_states, &cell_id, work_dir.as_deref()).await
 }
 
 #[derive(Debug, Clone, Serialize)]

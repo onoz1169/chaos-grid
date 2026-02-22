@@ -1,14 +1,16 @@
 import type { JSX } from 'react'
 import type { CellState, AnalyzeResult } from '../../../shared/types'
-import { CELL_IDS } from '../../../shared/types'
+import { getCellIds } from '../../../shared/types'
 
 interface StatusOverlayProps {
   result: AnalyzeResult
   cellStates: Record<string, CellState>
   onClose: () => void
+  gridRows: number
+  gridCols: number
 }
 
-export default function StatusOverlay({ result, cellStates, onClose }: StatusOverlayProps): JSX.Element {
+export default function StatusOverlay({ result, cellStates, onClose, gridRows, gridCols }: StatusOverlayProps): JSX.Element {
   const now = new Date()
   const timestamp = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 
@@ -28,7 +30,7 @@ export default function StatusOverlay({ result, cellStates, onClose }: StatusOve
       </div>
 
       <div className="overlay-grid">
-        {CELL_IDS.map((id) => {
+        {getCellIds(gridRows, gridCols).map((id) => {
           const cell = cellStates[id]
           const summary = result.summaries[id] || 'No data'
           return (

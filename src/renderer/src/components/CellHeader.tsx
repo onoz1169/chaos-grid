@@ -1,18 +1,12 @@
 import { useState, useRef, useEffect, type JSX } from 'react'
 import type { CellState } from '../../../shared/types'
-import { getCellRole } from '../../../shared/types'
+import { getCellRole, ROLE_COLORS } from '../../../shared/types'
 
 interface CellHeaderProps {
   cellState: CellState
   onThemeChange: (id: string, theme: string) => void
   onLaunch: () => void
   onKill: () => void
-}
-
-const ROLE_COLORS: Record<string, string> = {
-  'Stimulus': '#4488bb',
-  'Will': '#bb8844',
-  'Supply': '#00ff88',
 }
 
 const STATUS_COLORS: Record<CellState['status'], string> = {
