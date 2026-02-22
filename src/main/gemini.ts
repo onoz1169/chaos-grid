@@ -5,7 +5,7 @@ const apiKey = process.env.GEMINI_API_KEY
 if (!apiKey) throw new Error('GEMINI_API_KEY is not set. Copy .env.example to .env and add your key.')
 
 const genAI = new GoogleGenerativeAI(apiKey)
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
 export async function analyzeCells(cells: CellState[]): Promise<AnalyzeResult> {
   const cellDescriptions = cells
