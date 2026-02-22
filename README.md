@@ -1,11 +1,11 @@
 # CHAOS GRID
 
-知的生産の流れを可視化する、9画面ターミナルマネージャー。
+A 9-terminal manager that visualizes the flow of knowledge work.
 
 ```
 ┌──────────────┬──────────────┬──────────────┐
-│     供給      │     意志      │     刺激      │
-│  (作って出す) │ (自分ごとにする)│ (外から受け取る)│
+│    Supply    │     Will     │   Stimulus   │
+│  (ship it)  │ (make it yours)│ (take it in) │
 ├──────────────┼──────────────┼──────────────┤
 │  claude code │  claude code │  claude code │
 ├──────────────┼──────────────┼──────────────┤
@@ -13,38 +13,39 @@
 ├──────────────┼──────────────┼──────────────┤
 │  claude code │  claude code │  claude code │
 └──────────────┴──────────────┴──────────────┘
-                ↓ [司令塔 / 分析]
-    AIが9つのターミナルを横断して分析
-    流れの詰まりと次のアクションを提示
+                  ↓ [Analyze]
+     AI scans all 9 terminals at once.
+     Finds where the flow is blocked.
+     Tells you exactly what to do next.
 ```
 
-## コンセプト
+## The Idea
 
-知的生産を3つの縦レイヤーで整理する。
+Knowledge work has three layers:
 
-| レイヤー | 役割 | 列 |
-|--------|------|-----|
-| **刺激** | 外から情報を受け取る（リサーチ・読書・調査） | 右列 |
-| **意志** | 自分ごとに変換する（思考・整理・判断） | 中列 |
-| **供給** | 作って世に出す（執筆・実装・発信） | 左列 |
+| Layer | Role | Column |
+|-------|------|--------|
+| **Stimulus** | Receive from outside — research, reading, exploration | Right |
+| **Will** | Convert to personal intent — thinking, deciding, synthesizing | Center |
+| **Supply** | Create and ship — writing, coding, publishing | Left |
 
-各セルにテーマをつけて Claude Code を走らせ、司令塔 AI（Gemini）が「どこで流れが詰まっているか」「次に何をすべきか」を教えてくれる。
+Assign themes to each cell, run Claude Code in all of them, and let the Command AI (Gemini) diagnose where the flow from Stimulus → Will → Supply is breaking down.
 
 ## Features
 
-- **3×3 ターミナルグリッド** — PTY による本物のターミナル 9 画面
-- **LAUNCH ALL** — 全セルに `claude --dangerously-skip-permissions` を一括送信
-- **司令塔（COMMAND モード）** — Gemini が全ターミナルを分析し、刺激→意志→供給の流れを診断
-- **セッション永続化** — アプリを再起動しても各セルの出力と分析履歴が復元される
-- **自動分析タイマー** — 1 / 3 / 5 / 10 分ごとに自動で分析を実行
+- **3×3 terminal grid** — 9 real PTY terminals, each with a named theme
+- **LAUNCH ALL** — sends `claude --dangerously-skip-permissions` to every terminal at once
+- **COMMAND mode** — Gemini analyzes all active terminals and diagnoses the Stimulus → Will → Supply flow
+- **Session persistence** — cell outputs and analysis history survive app restarts
+- **Auto-analyze timer** — trigger analysis automatically every 1 / 3 / 5 / 10 minutes
 
 ## Requirements
 
-- macOS / Windows
+- macOS or Windows
 - [Rust](https://rustup.rs/) 1.77+
 - Node.js 18+
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (`npm i -g @anthropic-ai/claude-code`)
-- [Gemini API キー](https://aistudio.google.com/apikey)（無料枠あり）
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — `npm i -g @anthropic-ai/claude-code`
+- [Gemini API key](https://aistudio.google.com/apikey) (free tier available)
 
 ## Setup
 
@@ -53,7 +54,7 @@ git clone https://github.com/onoz1169/chaos-grid.git
 cd chaos-grid
 npm install
 cp .env.example .env
-# .env に Gemini API キーを記入
+# Add your Gemini API key to .env
 npm run dev
 ```
 
@@ -64,22 +65,22 @@ GEMINI_API_KEY=your_key_here
 
 ## Usage
 
-| 操作 | 方法 |
-|------|------|
-| 全セルで Claude を起動 | **⚡ LAUNCH ALL** をクリック |
-| 特定セルで Claude を起動 | セルヘッダーの **▶** をクリック |
-| 流れを分析する | **COMMAND** モードに切り替えて **⟳ 分析** をクリック |
-| 自動分析 | トップバーのタイマーを設定（1 / 3 / 5 / 10 分） |
-| テーマ名を変更 | セルヘッダーのテーマをダブルクリック |
-| ターミナルを終了 | セルヘッダーの **✕** をクリック |
+| Action | How |
+|--------|-----|
+| Launch Claude in all terminals | Click **⚡ LAUNCH ALL** |
+| Launch Claude in one terminal | Click **▶** in the cell header |
+| Analyze the flow | Switch to **COMMAND** mode → click **⟳ Analyze** |
+| Auto-analyze | Set the timer in the top bar (1 / 3 / 5 / 10 min) |
+| Rename a theme | Double-click the theme label in the cell header |
+| Kill a terminal | Click **✕** in the cell header |
 
 ## Stack
 
-- [Tauri v2](https://v2.tauri.app/) — Rust バックエンド + システム WebView（軽量、クロスプラットフォーム）
+- [Tauri v2](https://v2.tauri.app/) — Rust backend + system WebView (lightweight, cross-platform)
 - [React](https://react.dev/) + TypeScript
-- [xterm.js](https://xtermjs.org/) — ターミナルエミュレーション
-- [portable-pty](https://github.com/wez/wezterm/tree/main/pty) — 本物の PTY プロセス管理
-- [Gemini 2.5 Flash](https://ai.google.dev/) — 司令塔分析エンジン
+- [xterm.js](https://xtermjs.org/) — terminal emulation
+- [portable-pty](https://github.com/wez/wezterm/tree/main/pty) — real PTY process management
+- [Gemini 2.5 Flash](https://ai.google.dev/) — Command analysis engine
 
 ## License
 
