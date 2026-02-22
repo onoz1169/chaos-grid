@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type JSX } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import type { CellState, AnalyzeResult } from '../../../shared/types'
 
 interface SynthesisPanelProps {
@@ -14,7 +15,7 @@ export default function SynthesisPanel({ cellStates, cellActivity }: SynthesisPa
   const analyze = async (): Promise<void> => {
     setAnalyzing(true)
     try {
-      const r = (await window.chaosAPI.invoke('chaos:analyze')) as AnalyzeResult
+      const r = await invoke<AnalyzeResult>('analyze')
       setResult(r)
       setLastAnalyzed(new Date())
     } finally {

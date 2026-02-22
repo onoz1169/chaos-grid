@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 import type { CellState } from '../../../shared/types'
 import { CELL_IDS, COL_LABELS } from '../../../shared/types'
 import Cell from './Cell'

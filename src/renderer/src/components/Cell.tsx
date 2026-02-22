@@ -1,7 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type JSX } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import type { CellState } from '../../../shared/types'
 import CellHeader from './CellHeader'
 
@@ -9,8 +11,8 @@ interface CellProps {
   cellState: CellState
   onThemeChange: (id: string, theme: string) => void
   onActivity: (id: string) => void
-  heat?: number      // organism mode: 0.5-4
-  compact?: boolean  // command mode: smaller font
+  heat?: number
+  compact?: boolean
 }
 
 export default function Cell({ cellState, onThemeChange, onActivity, heat = 1, compact = false }: CellProps): JSX.Element {
@@ -18,7 +20,6 @@ export default function Cell({ cellState, onThemeChange, onActivity, heat = 1, c
   const termRef = useRef<Terminal | null>(null)
   const spawnedRef = useRef(false)
 
-  // Heat-based border color
   const borderColor =
     heat >= 4 ? '#00ff88' :
     heat >= 2 ? '#ffcc00' :
@@ -51,28 +52,38 @@ export default function Cell({ cellState, onThemeChange, onActivity, heat = 1, c
     if (!spawnedRef.current) {
       spawnedRef.current = true
       const { cols, rows } = term
-      window.chaosAPI.invoke('chaos:spawn', cellState.id, cols, rows)
+      invoke('spawn_pty', { cellId: cellState.id, cols, rows })
     }
 
     term.onData((data) => {
-      window.chaosAPI.invoke('chaos:write', cellState.id, data)
+      invoke('write_pty', { cellId: cellState.id, data })
     })
 
-    const cleanup = window.chaosAPI.on('chaos:pty-data', (cellId: string, data: string) => {
-      if (cellId === cellState.id) {
-        term.write(data)
+    let mounted = true
+    let unlistenFn: (() => void) | null = null
+
+    listen<{ cellId: string; data: string }>('pty-data', (event) => {
+      if (event.payload.cellId === cellState.id) {
+        term.write(event.payload.data)
         onActivity(cellState.id)
+      }
+    }).then((fn) => {
+      if (mounted) {
+        unlistenFn = fn
+      } else {
+        fn()
       }
     })
 
     const resizeObserver = new ResizeObserver(() => {
       fitAddon.fit()
-      window.chaosAPI.invoke('chaos:resize', cellState.id, term.cols, term.rows)
+      invoke('resize_pty', { cellId: cellState.id, cols: term.cols, rows: term.rows })
     })
     resizeObserver.observe(terminalRef.current)
 
     return () => {
-      cleanup()
+      mounted = false
+      if (unlistenFn) unlistenFn()
       resizeObserver.disconnect()
       term.dispose()
       termRef.current = null
@@ -80,11 +91,11 @@ export default function Cell({ cellState, onThemeChange, onActivity, heat = 1, c
   }, [cellState.id])
 
   const handleLaunch = (): void => {
-    window.chaosAPI.invoke('chaos:launch-cell', cellState.id)
+    invoke('launch_cell', { cellId: cellState.id })
   }
 
   const handleKill = (): void => {
-    window.chaosAPI.invoke('chaos:kill', cellState.id)
+    invoke('kill_pty', { cellId: cellState.id })
   }
 
   return (
@@ -97,7 +108,6 @@ export default function Cell({ cellState, onThemeChange, onActivity, heat = 1, c
         onThemeChange={onThemeChange}
         onLaunch={handleLaunch}
         onKill={handleKill}
-        heat={heat}
       />
       <div className="terminal-container" ref={terminalRef} />
     </div>

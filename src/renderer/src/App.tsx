@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, type JSX } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import type { CellState, AnalyzeResult } from '../../shared/types'
 import TopBar from './components/TopBar'
 import Grid, { type ViewMode } from './components/Grid'
@@ -16,8 +17,7 @@ export default function App(): JSX.Element {
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
 
   useEffect(() => {
-    window.chaosAPI.invoke('chaos:get-cells').then((cells) => {
-      const arr = cells as CellState[]
+    invoke<CellState[]>('get_cells').then((arr) => {
       const map: Record<string, CellState> = {}
       arr.forEach((c) => (map[c.id] = c))
       setCellStates(map)
@@ -31,7 +31,7 @@ export default function App(): JSX.Element {
   const handleAnalyze = useCallback(async () => {
     setAnalyzing(true)
     try {
-      const result = (await window.chaosAPI.invoke('chaos:analyze')) as AnalyzeResult
+      const result = await invoke<AnalyzeResult>('analyze')
       setAnalyzeResult(result)
       setShowStatus(true)
     } finally {
@@ -49,11 +49,11 @@ export default function App(): JSX.Element {
   }, [autoTimer, handleAnalyze])
 
   const handleLaunchAll = useCallback(async () => {
-    await window.chaosAPI.invoke('chaos:launch-all')
+    await invoke('launch_all')
   }, [])
 
   const handleThemeChange = useCallback((id: string, theme: string) => {
-    window.chaosAPI.invoke('chaos:set-theme', id, theme)
+    invoke('set_theme', { cellId: id, theme })
     setCellStates((prev) => ({ ...prev, [id]: { ...prev[id], theme } }))
   }, [])
 

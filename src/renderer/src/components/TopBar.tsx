@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 import type { ViewMode } from './Grid'
 
 type AutoTimer = 'off' | '1' | '3' | '5' | '10'
