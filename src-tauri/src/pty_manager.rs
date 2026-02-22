@@ -46,7 +46,8 @@ pub fn spawn(
     cmd.arg("-l"); // login shell: sources .zprofile/.bash_profile so nvm/rbenv etc. are loaded
     cmd.cwd(dirs::home_dir().unwrap_or_else(|| "/".into()));
 
-    // Collect env vars, filtering out Claude Code ones
+    // Clear inherited env completely, then rebuild without Claude Code vars
+    cmd.env_clear();
     let filtered_keys = ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "npm_config_prefix"];
     for (key, value) in std::env::vars() {
         if filtered_keys.contains(&key.as_str()) {
