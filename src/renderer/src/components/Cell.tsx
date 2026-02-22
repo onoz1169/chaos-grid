@@ -8,12 +8,21 @@ import CellHeader from './CellHeader'
 interface CellProps {
   cellState: CellState
   onThemeChange: (id: string, theme: string) => void
+  onActivity: (id: string) => void
+  heat?: number      // organism mode: 0.5-4
+  compact?: boolean  // command mode: smaller font
 }
 
-export default function Cell({ cellState, onThemeChange }: CellProps): JSX.Element {
+export default function Cell({ cellState, onThemeChange, onActivity, heat = 1, compact = false }: CellProps): JSX.Element {
   const terminalRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const spawnedRef = useRef(false)
+
+  // Heat-based border color
+  const borderColor =
+    heat >= 4 ? '#00ff88' :
+    heat >= 2 ? '#ffcc00' :
+    heat >= 1 ? '#333' : '#1a1a1a'
 
   useEffect(() => {
     if (!terminalRef.current || termRef.current) return
@@ -29,7 +38,7 @@ export default function Cell({ cellState, onThemeChange }: CellProps): JSX.Eleme
         blue: '#4488ff'
       },
       fontFamily: 'JetBrains Mono, Menlo, Monaco, monospace',
-      fontSize: 13,
+      fontSize: compact ? 11 : 13,
       cursorBlink: true
     })
 
@@ -50,7 +59,10 @@ export default function Cell({ cellState, onThemeChange }: CellProps): JSX.Eleme
     })
 
     const cleanup = window.chaosAPI.on('chaos:pty-data', (cellId: string, data: string) => {
-      if (cellId === cellState.id) term.write(data)
+      if (cellId === cellState.id) {
+        term.write(data)
+        onActivity(cellState.id)
+      }
     })
 
     const resizeObserver = new ResizeObserver(() => {
@@ -76,12 +88,16 @@ export default function Cell({ cellState, onThemeChange }: CellProps): JSX.Eleme
   }
 
   return (
-    <div className="cell">
+    <div
+      className="cell"
+      style={{ borderLeft: `2px solid ${borderColor}`, transition: 'border-color 1s ease' }}
+    >
       <CellHeader
         cellState={cellState}
         onThemeChange={onThemeChange}
         onLaunch={handleLaunch}
         onKill={handleKill}
+        heat={heat}
       />
       <div className="terminal-container" ref={terminalRef} />
     </div>

@@ -1,3 +1,5 @@
+import type { ViewMode } from './Grid'
+
 type AutoTimer = 'off' | '1' | '3' | '5' | '10'
 
 interface TopBarProps {
@@ -7,7 +9,15 @@ interface TopBarProps {
   onAutoTimerChange: (value: AutoTimer) => void
   onAnalyze: () => void
   onLaunchAll: () => void
+  viewMode: ViewMode
+  onViewModeChange: (mode: ViewMode) => void
 }
+
+const MODE_LABELS: { key: ViewMode; label: string; title: string }[] = [
+  { key: 'grid',     label: '⊞ GRID',     title: '等サイズ 3×3' },
+  { key: 'organism', label: '◉ ORGANISM', title: '活動量でセルが拡縮' },
+  { key: 'command',  label: '⌘ COMMAND',  title: '司令塔パネル常時表示' },
+]
 
 export default function TopBar({
   activeCells,
@@ -15,7 +25,9 @@ export default function TopBar({
   autoTimer,
   onAutoTimerChange,
   onAnalyze,
-  onLaunchAll
+  onLaunchAll,
+  viewMode,
+  onViewModeChange,
 }: TopBarProps): JSX.Element {
   return (
     <div className="top-bar">
@@ -23,26 +35,34 @@ export default function TopBar({
         <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: 2, color: '#00ff88' }}>
           CHAOS GRID
         </span>
-        <span
-          style={{
-            fontSize: 11,
-            color: '#666',
-            background: '#1a1a1a',
-            padding: '2px 8px',
-            borderRadius: 4
-          }}
-        >
+        <span style={{ fontSize: 11, color: '#666', background: '#1a1a1a', padding: '2px 8px', borderRadius: 4 }}>
           {activeCells} / 9 ACTIVE
         </span>
+      </div>
+
+      {/* Mode switcher */}
+      <div className="mode-switcher">
+        {MODE_LABELS.map(({ key, label, title }) => (
+          <button
+            key={key}
+            className={`mode-btn ${viewMode === key ? 'mode-btn-active' : ''}`}
+            onClick={() => onViewModeChange(key)}
+            title={title}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       <button className="btn btn-green" onClick={onLaunchAll}>
         &#9889; LAUNCH ALL
       </button>
 
-      <button className="btn" onClick={onAnalyze} disabled={analyzing}>
-        {analyzing ? 'ANALYZING...' : 'STATUS'}
-      </button>
+      {viewMode !== 'command' && (
+        <button className="btn" onClick={onAnalyze} disabled={analyzing}>
+          {analyzing ? 'ANALYZING...' : 'STATUS'}
+        </button>
+      )}
 
       <select
         value={autoTimer}
@@ -55,14 +75,6 @@ export default function TopBar({
         <option value="10">Auto: 10min</option>
       </select>
 
-      <button
-        className="btn-icon"
-        onClick={() => window.chaosAPI.invoke('chaos:write', '', '')}
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        title="Minimize"
-      >
-        &#8211;
-      </button>
       <button
         className="btn-icon"
         onClick={() => window.close()}

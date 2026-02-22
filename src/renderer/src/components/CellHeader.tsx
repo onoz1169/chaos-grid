@@ -6,6 +6,7 @@ interface CellHeaderProps {
   onThemeChange: (id: string, theme: string) => void
   onLaunch: () => void
   onKill: () => void
+  heat?: number
 }
 
 const STATUS_COLORS: Record<CellState['status'], string> = {
@@ -18,8 +19,10 @@ export default function CellHeader({
   cellState,
   onThemeChange,
   onLaunch,
-  onKill
+  onKill,
+  heat = 1
 }: CellHeaderProps): JSX.Element {
+  const heatLabel = heat >= 4 ? '🔥' : heat >= 2 ? '·' : ''
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(cellState.theme)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -75,9 +78,9 @@ export default function CellHeader({
             setDraft(cellState.theme)
             setEditing(true)
           }}
-          style={{ fontSize: 11, color: '#aaa', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}
+          style={{ fontSize: 11, color: heat >= 2 ? '#e0e0e0' : '#aaa', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default', transition: 'color 1s ease' }}
         >
-          {cellState.theme}
+          {heatLabel} {cellState.theme}
         </span>
       )}
 

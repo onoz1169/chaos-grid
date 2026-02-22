@@ -7,15 +7,29 @@ body {
   user-select: none;
 }
 #root { width: 100vw; height: 100vh; display: flex; flex-direction: column; }
+
+/* ── Top bar ── */
 .top-bar {
   height: 48px;
   background: #111;
   border-bottom: 1px solid #222;
-  display: flex; align-items: center; gap: 12px; padding: 0 16px;
+  display: flex; align-items: center; gap: 10px; padding: 0 14px;
   -webkit-app-region: drag;
   flex-shrink: 0;
 }
 .top-bar button, .top-bar select { -webkit-app-region: no-drag; }
+
+/* ── Mode switcher ── */
+.mode-switcher { display: flex; gap: 2px; background: #0a0a0a; padding: 2px; border-radius: 4px; border: 1px solid #222; }
+.mode-btn {
+  background: transparent; color: #555; border: none;
+  padding: 3px 10px; cursor: pointer; font-family: inherit; font-size: 11px;
+  border-radius: 3px; transition: all 0.15s; white-space: nowrap;
+}
+.mode-btn:hover { color: #aaa; background: #1a1a1a; }
+.mode-btn-active { background: #1a1a1a !important; color: #00ff88 !important; }
+
+/* ── Grid (GRID mode) ── */
 .grid {
   flex: 1;
   display: grid;
@@ -25,35 +39,82 @@ body {
   background: #1a1a1a;
   overflow: hidden;
 }
-.cell { background: #0a0a0a; display: flex; flex-direction: column; overflow: hidden; }
+.grid-small {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+}
+
+/* ── Cell ── */
+.cell { background: #0a0a0a; display: flex; flex-direction: column; overflow: hidden; min-width: 0; min-height: 0; }
 .cell-header {
-  height: 32px; background: #111; border-bottom: 1px solid #222;
-  display: flex; align-items: center; gap: 8px; padding: 0 8px;
+  height: 30px; background: #0f0f0f; border-bottom: 1px solid #1e1e1e;
+  display: flex; align-items: center; gap: 6px; padding: 0 8px;
   flex-shrink: 0;
 }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.terminal-container { flex: 1; overflow: hidden; position: relative; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.terminal-container { flex: 1; overflow: hidden; position: relative; min-height: 0; }
 .terminal-container .xterm { height: 100%; }
+
+/* ── COMMAND mode ── */
+.command-layout { flex: 1; display: flex; overflow: hidden; }
+.command-terminals { flex: 1; display: flex; overflow: hidden; }
+.command-terminals .grid { flex: 1; }
+
+/* ── Synthesis panel (COMMAND mode) ── */
+.synthesis-panel {
+  width: 280px; flex-shrink: 0;
+  background: #080808; border-left: 1px solid #1e1e1e;
+  display: flex; flex-direction: column; gap: 0;
+  overflow-y: auto; padding: 0;
+}
+.synthesis-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border-bottom: 1px solid #1e1e1e;
+  flex-shrink: 0; position: sticky; top: 0; background: #080808; z-index: 1;
+}
+.synthesis-title { font-size: 12px; font-weight: 700; letter-spacing: 2px; color: #00ff88; }
+.synthesis-section { padding: 12px 14px; border-bottom: 1px solid #111; }
+.synthesis-label { font-size: 9px; letter-spacing: 2px; color: #444; margin-bottom: 8px; }
+.synthesis-footer { padding: 8px 14px; font-size: 10px; color: #333; margin-top: auto; }
+
+.activity-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 11px; color: #aaa; }
+.activity-row.hot { color: #00ff88; }
+.activity-row.warm { color: #ffcc00; }
+.activity-dot { width: 6px; height: 6px; border-radius: 50%; background: #00ff88; flex-shrink: 0; }
+.activity-dot.warm { background: #ffcc00; }
+
+.summary-row { margin-bottom: 10px; }
+.summary-theme { font-size: 10px; color: #00ff88; display: block; margin-bottom: 2px; }
+.summary-text { font-size: 11px; color: #777; line-height: 1.5; }
+
+.idea-row { display: flex; gap: 8px; margin-bottom: 8px; font-size: 11px; color: #aaa; line-height: 1.5; }
+.idea-bullet { color: #00ff88; flex-shrink: 0; margin-top: 1px; }
+
+/* ── Buttons ── */
 .btn {
   background: #1a1a1a; color: #e0e0e0; border: 1px solid #333;
   padding: 4px 12px; cursor: pointer; font-family: inherit; font-size: 12px;
-  transition: all 0.15s;
+  transition: all 0.15s; white-space: nowrap;
 }
 .btn:hover { background: #222; border-color: #555; }
+.btn:disabled { opacity: 0.5; cursor: default; }
 .btn-green { background: #001a0d; border-color: #00ff88; color: #00ff88; }
 .btn-green:hover { background: #002a14; }
 .btn-icon {
-  background: transparent; border: none; color: #666;
+  background: transparent; border: none; color: #555;
   cursor: pointer; padding: 2px 6px; font-size: 11px;
 }
 .btn-icon:hover { color: #e0e0e0; }
+
+/* ── Status overlay ── */
 .overlay {
   position: fixed; inset: 0;
-  background: rgba(0,0,0,0.92);
+  background: rgba(0,0,0,0.93);
   display: flex; flex-direction: column;
   padding: 32px; gap: 24px; overflow-y: auto; z-index: 100;
 }
 .overlay-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.overlay-cell { background: #111; border: 1px solid #222; padding: 16px; }
-.idea-card { background: #0d1a0d; border: 1px solid #00ff88; padding: 16px; margin-bottom: 8px; }
+.overlay-cell { background: #111; border: 1px solid #1e1e1e; padding: 16px; }
+.idea-card { background: #0d1a0d; border: 1px solid #00ff88; padding: 14px; margin-bottom: 8px; }
+
 select { background: #111; color: #e0e0e0; border: 1px solid #333; padding: 4px 8px; font-family: inherit; font-size: 12px; }

@@ -1,11 +1,17 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { CellState, AnalyzeResult } from '../shared/types'
 
-const apiKey = process.env.GEMINI_API_KEY
-if (!apiKey) throw new Error('GEMINI_API_KEY is not set. Copy .env.example to .env and add your key.')
+let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
 
-const genAI = new GoogleGenerativeAI(apiKey)
-const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+function getModel(): ReturnType<GoogleGenerativeAI['getGenerativeModel']> {
+  if (!model) {
+    const apiKey = process.env.GEMINI_API_KEY
+    if (!apiKey) throw new Error('GEMINI_API_KEY is not set. Copy .env.example to .env and add your key.')
+    const genAI = new GoogleGenerativeAI(apiKey)
+    model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  }
+  return model
+}
 
 export async function analyzeCells(cells: CellState[]): Promise<AnalyzeResult> {
   const cellDescriptions = cells
@@ -37,7 +43,7 @@ Respond with JSON only (no markdown fences):
 
 Provide concise summaries and 1-3 creative cross-theme ideas based on what's happening across terminals.`
 
-  const result = await model.generateContent(prompt)
+  const result = await getModel().generateContent(prompt)
   const text = result.response.text()
 
   const jsonMatch = text.match(/\{[\s\S]*\}/)

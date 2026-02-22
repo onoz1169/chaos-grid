@@ -1,19 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { CellState, AnalyzeResult } from '../../shared/types'
 import TopBar from './components/TopBar'
-import Grid from './components/Grid'
+import Grid, { type ViewMode } from './components/Grid'
 import StatusOverlay from './components/StatusOverlay'
 
 type AutoTimer = 'off' | '1' | '3' | '5' | '10'
 
 export default function App(): JSX.Element {
   const [cellStates, setCellStates] = useState<Record<string, CellState>>({})
+  const [cellActivity, setCellActivity] = useState<Record<string, number>>({})
   const [showStatus, setShowStatus] = useState(false)
   const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [autoTimer, setAutoTimer] = useState<AutoTimer>('off')
-  const cellStatesRef = useRef(cellStates)
-  cellStatesRef.current = cellStates
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
 
   useEffect(() => {
     window.chaosAPI.invoke('chaos:get-cells').then((cells) => {
@@ -22,6 +22,10 @@ export default function App(): JSX.Element {
       arr.forEach((c) => (map[c.id] = c))
       setCellStates(map)
     })
+  }, [])
+
+  const handleActivity = useCallback((id: string) => {
+    setCellActivity((prev) => ({ ...prev, [id]: Date.now() }))
   }, [])
 
   const handleAnalyze = useCallback(async () => {
@@ -35,12 +39,12 @@ export default function App(): JSX.Element {
     }
   }, [])
 
+  const autoTimerRef = useRef(autoTimer)
+  autoTimerRef.current = autoTimer
   useEffect(() => {
     if (autoTimer === 'off') return
     const ms = parseInt(autoTimer) * 60 * 1000
-    const interval = setInterval(() => {
-      handleAnalyze()
-    }, ms)
+    const interval = setInterval(() => handleAnalyze(), ms)
     return () => clearInterval(interval)
   }, [autoTimer, handleAnalyze])
 
@@ -50,13 +54,12 @@ export default function App(): JSX.Element {
 
   const handleThemeChange = useCallback((id: string, theme: string) => {
     window.chaosAPI.invoke('chaos:set-theme', id, theme)
-    setCellStates((prev) => ({
-      ...prev,
-      [id]: { ...prev[id], theme }
-    }))
+    setCellStates((prev) => ({ ...prev, [id]: { ...prev[id], theme } }))
   }, [])
 
-  const activeCells = Object.values(cellStates).filter((c) => c.status === 'active').length
+  const activeCells = Object.values(cellActivity).filter(
+    (t) => Date.now() - t < 120_000
+  ).length
 
   return (
     <>
@@ -67,8 +70,16 @@ export default function App(): JSX.Element {
         onAutoTimerChange={setAutoTimer}
         onAnalyze={handleAnalyze}
         onLaunchAll={handleLaunchAll}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
       />
-      <Grid cellStates={cellStates} onThemeChange={handleThemeChange} />
+      <Grid
+        cellStates={cellStates}
+        cellActivity={cellActivity}
+        viewMode={viewMode}
+        onThemeChange={handleThemeChange}
+        onActivity={handleActivity}
+      />
       {showStatus && analyzeResult && (
         <StatusOverlay
           result={analyzeResult}

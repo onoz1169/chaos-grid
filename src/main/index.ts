@@ -3,8 +3,9 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { setupIPC } from './ipc'
 import { config } from 'dotenv'
+import { resolve } from 'path'
 
-config({ path: join(app.getAppPath(), '.env') })
+config({ path: resolve(__dirname, '../../.env') })
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
