@@ -29,7 +29,30 @@ body {
 .mode-btn:hover { color: #aaa; background: #1a1a1a; }
 .mode-btn-active { background: #1a1a1a !important; color: #00ff88 !important; }
 
-/* ── Grid (GRID mode) ── */
+/* ── Flow grid wrapper ── */
+.flow-grid-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.col-headers {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  height: 28px;
+  background: #080808;
+  flex-shrink: 0;
+}
+.col-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  letter-spacing: 3px;
+  font-weight: 600;
+}
+
+/* ── Grid ── */
 .grid {
   flex: 1;
   display: grid;
@@ -38,10 +61,6 @@ body {
   gap: 1px;
   background: #1a1a1a;
   overflow: hidden;
-}
-.grid-small {
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
 }
 
 /* ── Cell ── */

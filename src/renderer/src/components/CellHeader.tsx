@@ -1,31 +1,32 @@
 import { useState, useRef, useEffect } from 'react'
 import type { CellState } from '../../../shared/types'
+import { getCellRole } from '../../../shared/types'
 
 interface CellHeaderProps {
   cellState: CellState
   onThemeChange: (id: string, theme: string) => void
   onLaunch: () => void
   onKill: () => void
-  heat?: number
+}
+
+const ROLE_COLORS: Record<string, string> = {
+  '刺激': '#4488bb',
+  '意志': '#bb8844',
+  '供給': '#00ff88',
 }
 
 const STATUS_COLORS: Record<CellState['status'], string> = {
-  idle: '#666',
+  idle: '#444',
   active: '#00ff88',
-  thinking: '#ffcc00'
+  thinking: '#ffcc00',
 }
 
-export default function CellHeader({
-  cellState,
-  onThemeChange,
-  onLaunch,
-  onKill,
-  heat = 1
-}: CellHeaderProps): JSX.Element {
-  const heatLabel = heat >= 4 ? '🔥' : heat >= 2 ? '·' : ''
+export default function CellHeader({ cellState, onThemeChange, onLaunch, onKill }: CellHeaderProps): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(cellState.theme)
   const inputRef = useRef<HTMLInputElement>(null)
+  const role = getCellRole(cellState.id)
+  const roleColor = ROLE_COLORS[role]
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -44,7 +45,7 @@ export default function CellHeader({
   }
 
   return (
-    <div className="cell-header">
+    <div className="cell-header" style={{ borderBottom: `1px solid ${roleColor}22` }}>
       <span className="status-dot" style={{ background: STATUS_COLORS[cellState.status] }} />
 
       {editing ? (
@@ -55,41 +56,25 @@ export default function CellHeader({
           onBlur={commitEdit}
           onKeyDown={(e) => {
             if (e.key === 'Enter') commitEdit()
-            if (e.key === 'Escape') {
-              setDraft(cellState.theme)
-              setEditing(false)
-            }
+            if (e.key === 'Escape') { setDraft(cellState.theme); setEditing(false) }
           }}
           style={{
-            background: '#1a1a1a',
-            border: '1px solid #00ff88',
-            color: '#e0e0e0',
-            fontFamily: 'inherit',
-            fontSize: 11,
-            padding: '1px 4px',
-            outline: 'none',
-            flex: 1,
-            minWidth: 0
+            background: '#1a1a1a', border: `1px solid ${roleColor}`,
+            color: '#e0e0e0', fontFamily: 'inherit', fontSize: 11,
+            padding: '1px 4px', outline: 'none', flex: 1, minWidth: 0,
           }}
         />
       ) : (
         <span
-          onDoubleClick={() => {
-            setDraft(cellState.theme)
-            setEditing(true)
-          }}
-          style={{ fontSize: 11, color: heat >= 2 ? '#e0e0e0' : '#aaa', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default', transition: 'color 1s ease' }}
+          onDoubleClick={() => { setDraft(cellState.theme); setEditing(true) }}
+          style={{ fontSize: 11, color: '#aaa', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}
         >
-          {heatLabel} {cellState.theme}
+          {cellState.theme}
         </span>
       )}
 
-      <button className="btn-icon" onClick={onLaunch} title="Launch">
-        &#9654;
-      </button>
-      <button className="btn-icon" onClick={onKill} title="Kill">
-        &#10005;
-      </button>
+      <button className="btn-icon" onClick={onLaunch} title="Launch claude">▶</button>
+      <button className="btn-icon" onClick={onKill} title="Kill">✕</button>
     </div>
   )
 }
