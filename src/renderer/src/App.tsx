@@ -25,7 +25,7 @@ export default function App(): JSX.Element {
     () => parseInt(localStorage.getItem('chaos-grid-cols') ?? '3', 10)
   )
   const [outputDir, setOutputDir] = useState<string>(
-    () => localStorage.getItem('chaos-grid-output-dir') ?? ''
+    () => localStorage.getItem('chaos-grid-output-dir') || '~/chaos-grid-output'
   )
 
   useEffect(() => {
