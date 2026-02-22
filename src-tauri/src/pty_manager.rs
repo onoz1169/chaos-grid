@@ -43,6 +43,7 @@ pub fn spawn(
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
     let mut cmd = CommandBuilder::new(&shell);
+    cmd.arg("-l"); // login shell: sources .zprofile/.bash_profile so nvm/rbenv etc. are loaded
     cmd.cwd(dirs::home_dir().unwrap_or_else(|| "/".into()));
 
     // Collect env vars, filtering out Claude Code ones
