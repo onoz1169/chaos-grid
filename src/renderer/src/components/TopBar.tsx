@@ -31,7 +31,8 @@ interface TopBarProps {
 }
 
 const MODE_LABELS: { key: ViewMode; label: string; title: string }[] = [
-  { key: 'grid',    label: '⊞ GRID',    title: 'Equal-size 3×3 grid' },
+  { key: 'grid',    label: '⊞ GRID',    title: 'Equal-size terminal grid' },
+  { key: 'output',  label: '◉ OUTPUT',  title: 'All terminal outputs at a glance' },
   { key: 'command', label: '⌘ COMMAND', title: 'Always-on command panel' },
 ]
 
@@ -80,7 +81,7 @@ export default function TopBar({
         &#9889; LAUNCH ALL
       </button>
 
-      {viewMode !== 'command' && (
+      {viewMode === 'grid' && (
         <button className="btn" onClick={onAnalyze} disabled={analyzing}>
           {analyzing ? 'ANALYZING...' : 'STATUS'}
         </button>

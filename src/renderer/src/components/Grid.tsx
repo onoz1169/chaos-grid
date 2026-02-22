@@ -3,8 +3,9 @@ import type { CellState } from '../../../shared/types'
 import { getCellIds, getColLabels } from '../../../shared/types'
 import Cell from './Cell'
 import SynthesisPanel from './SynthesisPanel'
+import OutputView from './OutputView'
 
-export type ViewMode = 'grid' | 'command'
+export type ViewMode = 'grid' | 'command' | 'output'
 
 interface GridProps {
   cellStates: Record<string, CellState>
@@ -68,6 +69,10 @@ function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, g
 }
 
 export default function Grid({ cellStates, cellActivity, viewMode, onThemeChange, onActivity, language, gridRows, gridCols }: GridProps): JSX.Element {
+  if (viewMode === 'output') {
+    return <OutputView cellStates={cellStates} gridRows={gridRows} gridCols={gridCols} />
+  }
+
   if (viewMode === 'command') {
     return (
       <div className="command-layout">
