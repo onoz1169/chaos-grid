@@ -1,0 +1,12 @@
+/Users/onozawa/greentea/productivity/chaos-grid/src-tauri/target/debug/deps/cookie-58708526734cf674.d: /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/lib.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/builder.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/parse.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/jar.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/delta.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/same_site.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/expiration.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/prefix.rs
+
+/Users/onozawa/greentea/productivity/chaos-grid/src-tauri/target/debug/deps/libcookie-58708526734cf674.rmeta: /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/lib.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/builder.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/parse.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/jar.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/delta.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/same_site.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/expiration.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/prefix.rs
+
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/lib.rs:
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/builder.rs:
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/parse.rs:
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/jar.rs:
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/delta.rs:
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/same_site.rs:
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/expiration.rs:
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-0.18.1/src/prefix.rs:

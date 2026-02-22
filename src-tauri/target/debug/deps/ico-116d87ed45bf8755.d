@@ -1,0 +1,12 @@
+/Users/onozawa/greentea/productivity/chaos-grid/src-tauri/target/debug/deps/ico-116d87ed45bf8755.d: /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/lib.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/macros.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/bmpdepth.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/icondir.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/image.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/restype.rs
+
+/Users/onozawa/greentea/productivity/chaos-grid/src-tauri/target/debug/deps/libico-116d87ed45bf8755.rlib: /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/lib.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/macros.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/bmpdepth.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/icondir.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/image.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/restype.rs
+
+/Users/onozawa/greentea/productivity/chaos-grid/src-tauri/target/debug/deps/libico-116d87ed45bf8755.rmeta: /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/lib.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/macros.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/bmpdepth.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/icondir.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/image.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/restype.rs
+
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/lib.rs:
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/macros.rs:
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/bmpdepth.rs:
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/icondir.rs:
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/image.rs:
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ico-0.5.0/src/restype.rs:

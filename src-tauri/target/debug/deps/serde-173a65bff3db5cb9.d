@@ -1,0 +1,14 @@
+/Users/onozawa/greentea/productivity/chaos-grid/src-tauri/target/debug/deps/serde-173a65bff3db5cb9.d: /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/onozawa/greentea/productivity/chaos-grid/src-tauri/target/debug/build/serde-9e6bbb4a76c82b7a/out/private.rs
+
+/Users/onozawa/greentea/productivity/chaos-grid/src-tauri/target/debug/deps/libserde-173a65bff3db5cb9.rlib: /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/onozawa/greentea/productivity/chaos-grid/src-tauri/target/debug/build/serde-9e6bbb4a76c82b7a/out/private.rs
+
+/Users/onozawa/greentea/productivity/chaos-grid/src-tauri/target/debug/deps/libserde-173a65bff3db5cb9.rmeta: /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/onozawa/greentea/productivity/chaos-grid/src-tauri/target/debug/build/serde-9e6bbb4a76c82b7a/out/private.rs
+
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/Users/onozawa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/Users/onozawa/greentea/productivity/chaos-grid/src-tauri/target/debug/build/serde-9e6bbb4a76c82b7a/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/onozawa/greentea/productivity/chaos-grid/src-tauri/target/debug/build/serde-9e6bbb4a76c82b7a/out
