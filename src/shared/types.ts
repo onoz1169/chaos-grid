@@ -20,14 +20,14 @@ export interface FlowAnalysis {
   next: string              // 次にすべきこと
 }
 
-export type CellRole = '刺激' | '意志' | '供給'
+export type CellRole = 'Stimulus' | 'Will' | 'Supply'
 
 export function getCellRole(cellId: string): CellRole {
   const index = CELL_IDS.indexOf(cellId)
   const col = index % 3
-  if (col === 2) return '刺激'   // 右列
-  if (col === 1) return '意志'   // 中列
-  return '供給'                   // 左列
+  if (col === 2) return 'Stimulus'   // 右列
+  if (col === 1) return 'Will'       // 中列
+  return 'Supply'                     // 左列
 }
 
 export const DEFAULT_THEMES = [
@@ -38,5 +38,5 @@ export const DEFAULT_THEMES = [
 
 export const CELL_IDS = Array.from({ length: 9 }, (_, i) => `cell-${i}`)
 
-// 左→右の列ラベル（供給・意志・刺激）
-export const COL_LABELS: CellRole[] = ['供給', '意志', '刺激']
+// 左→右の列ラベル（Supply・Will・Stimulus）
+export const COL_LABELS: CellRole[] = ['Supply', 'Will', 'Stimulus']

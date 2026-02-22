@@ -15,8 +15,8 @@ interface TopBarProps {
 }
 
 const MODE_LABELS: { key: ViewMode; label: string; title: string }[] = [
-  { key: 'grid',    label: '⊞ GRID',    title: '等サイズ 3×3' },
-  { key: 'command', label: '⌘ COMMAND', title: '司令塔パネル常時表示' },
+  { key: 'grid',    label: '⊞ GRID',    title: 'Equal-size 3×3 grid' },
+  { key: 'command', label: '⌘ COMMAND', title: 'Always-on command panel' },
 ]
 
 export default function TopBar({

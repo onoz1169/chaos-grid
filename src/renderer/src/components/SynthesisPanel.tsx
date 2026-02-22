@@ -36,17 +36,17 @@ export default function SynthesisPanel({ cellStates, cellActivity }: SynthesisPa
   return (
     <div className="synthesis-panel">
       <div className="synthesis-header">
-        <span className="synthesis-title">司令塔</span>
+        <span className="synthesis-title">Command</span>
         <button className="btn btn-green" onClick={analyze} disabled={analyzing}
           style={{ fontSize: 11, padding: '2px 8px' }}>
-          {analyzing ? '分析中...' : '⟳ 分析'}
+          {analyzing ? 'Analyzing...' : '⟳ Analyze'}
         </button>
       </div>
 
       {/* Active now */}
       {hotCells.length > 0 && (
         <div className="synthesis-section">
-          <div className="synthesis-label">アクティブ</div>
+          <div className="synthesis-label">Active</div>
           {hotCells.map((theme) => (
             <div key={theme} className="activity-row hot">
               <span className="activity-dot" />{theme}
@@ -58,27 +58,27 @@ export default function SynthesisPanel({ cellStates, cellActivity }: SynthesisPa
       {/* Flow analysis */}
       {result?.flow && (
         <div className="synthesis-section">
-          <div className="synthesis-label">流れの分析</div>
+          <div className="synthesis-label">Flow Analysis</div>
 
           <div className="flow-block">
-            <div className="flow-layer-label" style={{ color: '#4488bb' }}>刺激 → 意志</div>
+            <div className="flow-layer-label" style={{ color: '#4488bb' }}>Stimulus → Will</div>
             <div className="flow-text">{result.flow.stimuli_to_will}</div>
           </div>
 
           <div className="flow-block">
-            <div className="flow-layer-label" style={{ color: '#bb8844' }}>意志 → 供給</div>
+            <div className="flow-layer-label" style={{ color: '#bb8844' }}>Will → Supply</div>
             <div className="flow-text">{result.flow.will_to_supply}</div>
           </div>
 
-          {result.flow.stuck !== '詰まりなし' && (
+          {result.flow.stuck.toLowerCase() !== 'none' && (
             <div className="flow-block stuck">
-              <div className="flow-layer-label" style={{ color: '#ff4444' }}>詰まり</div>
+              <div className="flow-layer-label" style={{ color: '#ff4444' }}>Blocked</div>
               <div className="flow-text">{result.flow.stuck}</div>
             </div>
           )}
 
           <div className="flow-block next">
-            <div className="flow-layer-label" style={{ color: '#00ff88' }}>次のアクション</div>
+            <div className="flow-layer-label" style={{ color: '#00ff88' }}>Next Action</div>
             <div className="flow-text">{result.flow.next}</div>
           </div>
         </div>
@@ -87,7 +87,7 @@ export default function SynthesisPanel({ cellStates, cellActivity }: SynthesisPa
       {/* Cell summaries */}
       {result && Object.keys(result.summaries).length > 0 && (
         <div className="synthesis-section">
-          <div className="synthesis-label">各セル</div>
+          <div className="synthesis-label">Cells</div>
           {Object.entries(result.summaries).map(([cellId, summary]) => (
             <div key={cellId} className="summary-row">
               <span className="summary-theme">{cellStates[cellId]?.theme || cellId}</span>
@@ -100,7 +100,7 @@ export default function SynthesisPanel({ cellStates, cellActivity }: SynthesisPa
       {/* Cross-theme ideas */}
       {result && result.ideas.length > 0 && (
         <div className="synthesis-section">
-          <div className="synthesis-label">発見・アイデア</div>
+          <div className="synthesis-label">Ideas</div>
           {result.ideas.map((idea, i) => (
             <div key={i} className="idea-row">
               <span className="idea-bullet">✦</span>
@@ -112,14 +112,14 @@ export default function SynthesisPanel({ cellStates, cellActivity }: SynthesisPa
 
       {!result && (
         <div style={{ color: '#333', fontSize: 11, padding: '16px 14px', lineHeight: 2 }}>
-          刺激・意志・供給の<br />各セルを動かしたら<br />「分析」を押す。<br /><br />
-          流れの詰まりと<br />次のアクションが<br />見えてくる。
+          Run terminals in each<br />Stimulus / Will / Supply<br />cell, then press Analyze.<br /><br />
+          Discover where the flow<br />is blocked and what<br />to do next.
         </div>
       )}
 
       {lastAnalyzed && (
         <div className="synthesis-footer">
-          {lastAnalyzed.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })} 分析
+          {lastAnalyzed.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} analyzed
         </div>
       )}
     </div>

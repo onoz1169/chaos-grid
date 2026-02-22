@@ -10,9 +10,9 @@ interface CellHeaderProps {
 }
 
 const ROLE_COLORS: Record<string, string> = {
-  '刺激': '#4488bb',
-  '意志': '#bb8844',
-  '供給': '#00ff88',
+  'Stimulus': '#4488bb',
+  'Will': '#bb8844',
+  'Supply': '#00ff88',
 }
 
 const STATUS_COLORS: Record<CellState['status'], string> = {

@@ -15,9 +15,9 @@ interface GridProps {
 }
 
 const COL_COLORS: Record<string, string> = {
-  '供給': '#00ff88',
-  '意志': '#bb8844',
-  '刺激': '#4488bb',
+  'Supply': '#00ff88',
+  'Will': '#bb8844',
+  'Stimulus': '#4488bb',
 }
 
 function GridInner({ cellStates, onThemeChange, onActivity, compact }: {
