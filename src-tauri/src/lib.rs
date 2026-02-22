@@ -26,10 +26,10 @@ fn expand_tilde(path: &str) -> String {
 fn make_launch_command(work_dir: Option<&str>) -> String {
     match work_dir {
         Some(dir) if !dir.trim().is_empty() => {
-            let expanded = expand_tilde(dir);
+            // Let the shell expand ~ itself so the correct user's home dir is used
             format!(
-                "mkdir -p '{}' && cd '{}' && claude --dangerously-skip-permissions\n",
-                expanded, expanded
+                "mkdir -p {dir} && cd {dir} && claude --dangerously-skip-permissions\n",
+                dir = dir
             )
         }
         _ => LAUNCH_COMMAND.to_string(),
@@ -452,7 +452,8 @@ pub struct FileEntry {
 #[tauri::command]
 async fn list_dir_files(path: String) -> Result<Vec<FileEntry>, String> {
     use std::time::UNIX_EPOCH;
-    let entries = std::fs::read_dir(&path).map_err(|e| format!("{}: {}", path, e))?;
+    let expanded = expand_tilde(&path);
+    let entries = std::fs::read_dir(&expanded).map_err(|e| format!("{}: {}", expanded, e))?;
     let mut files: Vec<FileEntry> = entries
         .filter_map(|e| e.ok())
         .filter_map(|entry| {
@@ -479,11 +480,12 @@ async fn list_dir_files(path: String) -> Result<Vec<FileEntry>, String> {
 
 #[tauri::command]
 async fn read_file_content(path: String) -> Result<String, String> {
-    let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+    let expanded = expand_tilde(&path);
+    let meta = std::fs::metadata(&expanded).map_err(|e| e.to_string())?;
     if meta.len() > 2_000_000 {
         return Err("File too large (>2MB)".to_string());
     }
-    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+    std::fs::read_to_string(&expanded).map_err(|e| e.to_string())
 }
 
 pub fn run() {
