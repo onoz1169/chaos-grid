@@ -10,9 +10,9 @@ fn get_cell_role(cell_id: &str) -> &'static str {
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
     match index % 3 {
-        2 => "刺激",
-        1 => "意志",
-        _ => "供給",
+        2 => "Stimulus",
+        1 => "Will",
+        _ => "Supply",
     }
 }
 
@@ -66,15 +66,15 @@ pub async fn analyze_cells(
 ) -> Result<AnalyzeResult, String> {
     let stimuli: Vec<&CellState> = cells
         .iter()
-        .filter(|c| get_cell_role(&c.id) == "刺激" && !c.last_output.is_empty())
+        .filter(|c| get_cell_role(&c.id) == "Stimulus" && !c.last_output.is_empty())
         .collect();
     let will: Vec<&CellState> = cells
         .iter()
-        .filter(|c| get_cell_role(&c.id) == "意志" && !c.last_output.is_empty())
+        .filter(|c| get_cell_role(&c.id) == "Will" && !c.last_output.is_empty())
         .collect();
     let supply: Vec<&CellState> = cells
         .iter()
-        .filter(|c| get_cell_role(&c.id) == "供給" && !c.last_output.is_empty())
+        .filter(|c| get_cell_role(&c.id) == "Supply" && !c.last_output.is_empty())
         .collect();
 
     let has_any = !stimuli.is_empty() || !will.is_empty() || !supply.is_empty();
@@ -90,59 +90,59 @@ pub async fn analyze_cells(
     let history_block = if history_section.is_empty() {
         String::new()
     } else {
-        format!("## 過去のセッション履歴\n{}\n", history_section)
+        format!("## Past Session History\n{}\n", history_section)
     };
 
     let stimuli_text = if !stimuli.is_empty() {
         format_cells(&stimuli)
     } else {
-        "（アクティブなセルなし）".to_string()
+        "(no active cells)".to_string()
     };
     let will_text = if !will.is_empty() {
         format_cells(&will)
     } else {
-        "（アクティブなセルなし）".to_string()
+        "(no active cells)".to_string()
     };
     let supply_text = if !supply.is_empty() {
         format_cells(&supply)
     } else {
-        "（アクティブなセルなし）".to_string()
+        "(no active cells)".to_string()
     };
 
     let prompt = format!(
-        r#"あなたは知的生産の流れを分析するAI「司令塔」です。
+        r#"You are an AI called "Command" that analyzes the flow of knowledge work.
 
-ユーザーの知的生産は3つのレイヤーで構成されています：
-- 刺激（外から受け取る）→ 意志（自分ごとに変換）→ 供給（作って世に出す）
+The user's knowledge work is organized into 3 layers:
+- Stimulus (receiving from outside) → Will (converting to personal intent) → Supply (creating and putting out)
 
-この縦の流れが健全に機能しているかを分析してください。
+Analyze whether this vertical flow is functioning healthily.
 
 {}
 
-## 現在のセッション
+## Current Session
 
-### 刺激レイヤー（外から何を受け取っているか）
+### Stimulus Layer (what is being received from outside)
 {}
 
-### 意志レイヤー（何を自分ごとにしているか）
+### Will Layer (what is being internalized)
 {}
 
-### 供給レイヤー（何を作って出しているか）
+### Supply Layer (what is being created and shipped)
 {}
 
-## 出力形式（JSONのみ、マークダウン不要）
+## Output format (JSON only, no markdown)
 {{
   "summaries": {{
-    "<cellId>": "このセルで何が起きているか1文"
+    "<cellId>": "one sentence describing what is happening in this cell"
   }},
   "ideas": [
-    "刺激×意志から生まれる具体的なアクションや発見（2〜3個）"
+    "concrete action or insight emerging from Stimulus × Will (2-3 items)"
   ],
   "flow": {{
-    "stimuli_to_will": "刺激が意志に変換されているか。されていれば何に変換されたか",
-    "will_to_supply": "意志が供給に落ちているか。落ちていれば何を作っているか",
-    "stuck": "流れが詰まっている場所と理由（なければ「詰まりなし」）",
-    "next": "今最もすべき1つのアクション"
+    "stimuli_to_will": "whether Stimulus is being converted to Will, and if so what it became",
+    "will_to_supply": "whether Will is being converted to Supply, and if so what is being created",
+    "stuck": "where and why the flow is blocked (write 'none' if no blockage)",
+    "next": "the single most important action to take right now"
   }}
 }}"#,
         history_block, stimuli_text, will_text, supply_text
