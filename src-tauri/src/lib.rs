@@ -179,14 +179,16 @@ async fn kill_pty(
 async fn analyze(
     app: tauri::AppHandle,
     cell_states: tauri::State<'_, CellStateMap>,
+    language: Option<String>,
 ) -> Result<AnalyzeResult, String> {
     let cells: Vec<CellState> = {
         let states = cell_states.0.lock().map_err(|e| e.to_string())?;
         states.values().cloned().collect()
     };
 
+    let lang = language.as_deref().unwrap_or("English");
     let history = storage::load_analysis_history(&app);
-    let result = gemini::analyze_cells(&cells, &history).await?;
+    let result = gemini::analyze_cells(&cells, &history, lang).await?;
 
     // Save analysis to history
     let themes: HashMap<String, String> = cells.iter().map(|c| (c.id.clone(), c.theme.clone())).collect();

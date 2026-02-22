@@ -15,6 +15,9 @@ export default function App(): JSX.Element {
   const [analyzing, setAnalyzing] = useState(false)
   const [autoTimer, setAutoTimer] = useState<AutoTimer>('off')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [language, setLanguage] = useState<string>(
+    () => localStorage.getItem('chaos-grid-language') ?? 'English'
+  )
 
   useEffect(() => {
     invoke<CellState[]>('get_cells').then((arr) => {
@@ -28,16 +31,21 @@ export default function App(): JSX.Element {
     setCellActivity((prev) => ({ ...prev, [id]: Date.now() }))
   }, [])
 
+  const handleLanguageChange = useCallback((lang: string) => {
+    setLanguage(lang)
+    localStorage.setItem('chaos-grid-language', lang)
+  }, [])
+
   const handleAnalyze = useCallback(async () => {
     setAnalyzing(true)
     try {
-      const result = await invoke<AnalyzeResult>('analyze')
+      const result = await invoke<AnalyzeResult>('analyze', { language })
       setAnalyzeResult(result)
       setShowStatus(true)
     } finally {
       setAnalyzing(false)
     }
-  }, [])
+  }, [language])
 
   const autoTimerRef = useRef(autoTimer)
   autoTimerRef.current = autoTimer
@@ -72,6 +80,8 @@ export default function App(): JSX.Element {
         onLaunchAll={handleLaunchAll}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
+        language={language}
+        onLanguageChange={handleLanguageChange}
       />
       <Grid
         cellStates={cellStates}
@@ -79,6 +89,7 @@ export default function App(): JSX.Element {
         viewMode={viewMode}
         onThemeChange={handleThemeChange}
         onActivity={handleActivity}
+        language={language}
       />
       {showStatus && analyzeResult && (
         <StatusOverlay

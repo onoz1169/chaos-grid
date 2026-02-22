@@ -3,6 +3,16 @@ import type { ViewMode } from './Grid'
 
 type AutoTimer = 'off' | '1' | '3' | '5' | '10'
 
+export const LANGUAGES = [
+  { code: 'English',    label: 'EN' },
+  { code: 'Japanese',   label: 'JA' },
+  { code: 'Chinese',    label: 'ZH' },
+  { code: 'Korean',     label: 'KO' },
+  { code: 'Spanish',    label: 'ES' },
+  { code: 'French',     label: 'FR' },
+  { code: 'German',     label: 'DE' },
+]
+
 interface TopBarProps {
   activeCells: number
   analyzing: boolean
@@ -12,6 +22,8 @@ interface TopBarProps {
   onLaunchAll: () => void
   viewMode: ViewMode
   onViewModeChange: (mode: ViewMode) => void
+  language: string
+  onLanguageChange: (lang: string) => void
 }
 
 const MODE_LABELS: { key: ViewMode; label: string; title: string }[] = [
@@ -28,6 +40,8 @@ export default function TopBar({
   onLaunchAll,
   viewMode,
   onViewModeChange,
+  language,
+  onLanguageChange,
 }: TopBarProps): JSX.Element {
   return (
     <div className="top-bar">
@@ -63,6 +77,16 @@ export default function TopBar({
           {analyzing ? 'ANALYZING...' : 'STATUS'}
         </button>
       )}
+
+      <select
+        value={language}
+        onChange={(e) => onLanguageChange(e.target.value)}
+        title="Analysis language"
+      >
+        {LANGUAGES.map(({ code, label }) => (
+          <option key={code} value={code}>{label}</option>
+        ))}
+      </select>
 
       <select
         value={autoTimer}

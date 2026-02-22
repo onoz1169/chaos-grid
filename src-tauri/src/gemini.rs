@@ -63,6 +63,7 @@ fn format_cells(cells: &[&CellState]) -> String {
 pub async fn analyze_cells(
     cells: &[CellState],
     history: &[AnalysisEntry],
+    language: &str,
 ) -> Result<AnalyzeResult, String> {
     let stimuli: Vec<&CellState> = cells
         .iter()
@@ -130,6 +131,8 @@ Analyze whether this vertical flow is functioning healthily.
 ### Supply Layer (what is being created and shipped)
 {}
 
+Respond entirely in: {}
+
 ## Output format (JSON only, no markdown)
 {{
   "summaries": {{
@@ -145,7 +148,7 @@ Analyze whether this vertical flow is functioning healthily.
     "next": "the single most important action to take right now"
   }}
 }}"#,
-        history_block, stimuli_text, will_text, supply_text
+        history_block, stimuli_text, will_text, supply_text, language
     );
 
     let api_key = std::env::var("GEMINI_API_KEY")

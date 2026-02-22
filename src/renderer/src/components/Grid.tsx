@@ -12,6 +12,7 @@ interface GridProps {
   viewMode: ViewMode
   onThemeChange: (id: string, theme: string) => void
   onActivity: (id: string) => void
+  language: string
 }
 
 const COL_COLORS: Record<string, string> = {
@@ -57,14 +58,14 @@ function GridInner({ cellStates, onThemeChange, onActivity, compact }: {
   )
 }
 
-export default function Grid({ cellStates, cellActivity, viewMode, onThemeChange, onActivity }: GridProps): JSX.Element {
+export default function Grid({ cellStates, cellActivity, viewMode, onThemeChange, onActivity, language }: GridProps): JSX.Element {
   if (viewMode === 'command') {
     return (
       <div className="command-layout">
         <div className="command-terminals">
           <GridInner cellStates={cellStates} onThemeChange={onThemeChange} onActivity={onActivity} compact />
         </div>
-        <SynthesisPanel cellStates={cellStates} cellActivity={cellActivity} />
+        <SynthesisPanel cellStates={cellStates} cellActivity={cellActivity} language={language} />
       </div>
     )
   }
