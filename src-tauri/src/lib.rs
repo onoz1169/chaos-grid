@@ -454,6 +454,117 @@ async fn list_dir_files_recursive(path: String) -> Result<Vec<FileEntry>, String
     Ok(files)
 }
 
+#[derive(serde::Deserialize)]
+struct GenreInput {
+    name: String,
+    dir: String,
+}
+
+#[tauri::command]
+async fn summarize_all_genres(
+    genres: Vec<GenreInput>,
+    language: String,
+) -> Result<String, String> {
+    let api_key = std::env::var("GEMINI_API_KEY")
+        .map_err(|_| "GEMINI_API_KEY not set".to_string())?;
+
+    fn collect_files(dir_path: &str) -> Vec<(String, std::path::PathBuf, u64)> {
+        use std::time::UNIX_EPOCH;
+        let mut files = Vec::new();
+        fn walk(root: &std::path::Path, dir: &std::path::Path, out: &mut Vec<(String, std::path::PathBuf, u64)>) {
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                for entry in entries.filter_map(|e| e.ok()) {
+                    let name = entry.file_name();
+                    if name.to_string_lossy().starts_with('.') { continue; }
+                    let path = entry.path();
+                    if let Ok(meta) = entry.metadata() {
+                        if meta.is_dir() {
+                            walk(root, &path, out);
+                        } else {
+                            let modified_ms = meta.modified().ok()
+                                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                                .map(|d| d.as_millis() as u64).unwrap_or(0);
+                            let rel = path.strip_prefix(root).unwrap_or(&path).to_string_lossy().to_string();
+                            out.push((rel, path, modified_ms));
+                        }
+                    }
+                }
+            }
+        }
+        let root = std::path::Path::new(dir_path);
+        if root.exists() { walk(root, root, &mut files); }
+        files.sort_by(|a, b| b.2.cmp(&a.2));
+        files
+    }
+
+    // Build one prompt section per genre
+    let genre_sections: Vec<String> = genres.iter().map(|g| {
+        let expanded = expand_tilde(&g.dir);
+        let files = collect_files(&expanded);
+        if files.is_empty() {
+            return format!("=== {} ===\n(no files)", g.name);
+        }
+        let file_list = files.iter()
+            .map(|(n, _, _)| format!("  - {}", n))
+            .collect::<Vec<_>>().join("\n");
+        // Top 2 files, up to 1200 chars each
+        let snippets = files.iter().take(2)
+            .filter_map(|(name, path, _)| {
+                let content = std::fs::read_to_string(path).ok()?;
+                let mut end = content.len().min(1200);
+                while !content.is_char_boundary(end) { end -= 1; }
+                Some(format!("--- {}\n{}", name, &content[..end]))
+            })
+            .collect::<Vec<_>>().join("\n\n");
+        format!("=== {} ===\nFiles ({} total):\n{}\n\nRecent content:\n{}", g.name, files.len(), file_list, snippets)
+    }).collect();
+
+    let prompt = format!(
+        "You are reviewing AI agent work output across multiple streams (stimulus=research/input, will=planning, supply=deliverables).\n\
+        Write 2-3 concise sentences summarizing the overall progress: what has been accomplished, what is in progress, and what comes next.\n\
+        Be specific and chronological. No filler phrases. Plain text only, no markdown, no bullet points.\n\
+        \n\
+        {}\n\
+        \n\
+        Respond in: {}",
+        genre_sections.join("\n\n"),
+        language
+    );
+
+    let url = format!(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={}",
+        api_key
+    );
+
+    let body = serde_json::json!({
+        "contents": [{ "parts": [{ "text": prompt }] }],
+        "generationConfig": { "maxOutputTokens": 300 }
+    });
+
+    let client = reqwest::Client::new();
+    let resp = client.post(&url).json(&body).send().await.map_err(|e| e.to_string())?;
+    let resp_json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+
+    let text = resp_json
+        .pointer("/candidates/0/content/parts/0/text")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+
+    if text.is_empty() {
+        return Err("empty response from model".to_string());
+    }
+
+    Ok(text)
+}
+
+#[tauri::command]
+async fn open_file(path: String) -> Result<(), String> {
+    let expanded = expand_tilde(&path);
+    open::that(expanded).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 async fn read_file_content(path: String) -> Result<String, String> {
     let expanded = expand_tilde(&path);
@@ -477,7 +588,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             spawn_pty, write_pty, resize_pty, kill_pty, analyze, get_cells, set_theme,
-            launch_all, launch_cell, launch_cells, list_dir_files, list_dir_files_recursive, read_file_content
+            launch_all, launch_cell, launch_cells, list_dir_files, list_dir_files_recursive, read_file_content, open_file, summarize_all_genres
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

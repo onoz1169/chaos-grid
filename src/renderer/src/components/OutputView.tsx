@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useMemo, type JSX } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, type JSX } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { CellState } from '../../../shared/types'
-import { getCellIds, getCellRole, roleColor } from '../../../shared/types'
+import { getCellIds, getCellRole, roleColor, cellWorkDir } from '../../../shared/types'
+import { fileExt, extColor, timeAgo, formatSize } from '../utils/files'
 
 interface FileEntry {
   name: string
@@ -11,40 +12,273 @@ interface FileEntry {
   isDir: boolean
 }
 
-function timeAgo(ms: number): string {
-  const diff = Date.now() - ms
-  if (diff < 60_000) return `${Math.floor(diff / 1000)}s ago`
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
-  return `${Math.floor(diff / 86_400_000)}d ago`
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`
-  if (bytes < 1_048_576) return `${(bytes / 1024).toFixed(1)}K`
-  return `${(bytes / 1_048_576).toFixed(1)}M`
-}
-
-function fileExt(name: string): string {
-  const i = name.lastIndexOf('.')
-  return i >= 0 ? name.slice(i + 1).toLowerCase() : ''
-}
-
-function extColor(ext: string): string {
-  const map: Record<string, string> = {
-    ts: '#4488ff', tsx: '#4488ff', js: '#ffcc00', jsx: '#ffcc00',
-    py: '#4488bb', rs: '#bb4444', go: '#44bbbb',
-    md: '#aaaaaa', json: '#bb8844', yaml: '#bb8844', yml: '#bb8844',
-    css: '#bb44bb', html: '#bb6644', sh: '#44bb88', txt: '#888888',
-  }
-  return map[ext] ?? '#666'
-}
-
 interface GenreInfo {
   name: string
   dir: string
   color: string
 }
+
+// ---- Summary bar ----
+
+interface SummaryBarProps {
+  genres: GenreInfo[]
+  allFiles: Record<string, FileEntry[]>
+  summary: string
+  summarizing: boolean
+  loading: boolean
+  selected: string | null
+  onSelect: (name: string) => void
+  onRefresh: () => void
+}
+
+function SummaryBar({ genres, allFiles, summary, summarizing, loading, selected, onSelect, onRefresh }: SummaryBarProps): JSX.Element {
+  return (
+    <div style={{
+      flexShrink: 0,
+      borderBottom: '1px solid #1a1a1a',
+      background: '#0a0a0a',
+    }}>
+      {/* Unified LLM summary */}
+      <div style={{
+        padding: '10px 14px',
+        borderBottom: '1px solid #141414',
+        display: 'flex', alignItems: 'flex-start', gap: 10,
+        minHeight: 44,
+      }}>
+        <div style={{ flex: 1 }}>
+          {summarizing ? (
+            <span style={{ fontSize: 11, color: '#666' }}>Summarizing...</span>
+          ) : summary ? (
+            <span style={{ fontSize: 12, color: '#ccc', lineHeight: 1.6 }}>{summary}</span>
+          ) : (
+            <span style={{ fontSize: 11, color: '#555' }}>No output yet</span>
+          )}
+        </div>
+        <button
+          onClick={onRefresh}
+          style={{
+            background: 'none', border: 'none', color: '#666', cursor: 'pointer',
+            fontSize: 14, padding: '0 2px', flexShrink: 0,
+            opacity: loading || summarizing ? 0.3 : 1,
+          }}
+          title="Refresh"
+        >
+          ⟳
+        </button>
+      </div>
+
+      {/* Genre cards — metadata only */}
+      <div style={{ display: 'flex', gap: 0, overflowX: 'auto' }}>
+        {genres.map((g) => {
+          const files = allFiles[g.name] ?? []
+          const recent = files.slice(0, 3)
+          const lastModified = files[0]?.modifiedMs
+          const active = selected === g.name
+          const totalSize = files.reduce((s, f) => s + f.sizeBytes, 0)
+
+          return (
+            <div
+              key={g.name}
+              onClick={() => onSelect(g.name)}
+              style={{
+                flex: 1, minWidth: 160,
+                padding: '8px 12px',
+                borderRight: '1px solid #141414',
+                borderBottom: `2px solid ${active ? g.color : 'transparent'}`,
+                cursor: 'pointer',
+                background: active ? '#111' : 'transparent',
+              }}
+              onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = '#0d0d0d' }}
+              onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent' }}
+            >
+              {/* Genre header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: g.color, letterSpacing: 0.5 }}>
+                  {g.name.toUpperCase()}
+                </span>
+                <span style={{ fontSize: 9, color: '#888' }}>
+                  {files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''}` : 'no files'}
+                </span>
+                {totalSize > 0 && (
+                  <span style={{ fontSize: 9, color: '#777' }}>{formatSize(totalSize)}</span>
+                )}
+                {lastModified && (
+                  <span style={{ fontSize: 9, color: '#777', marginLeft: 'auto' }}>{timeAgo(lastModified)}</span>
+                )}
+              </div>
+
+              {/* Recent files */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {recent.map((f) => {
+                  const ext = fileExt(f.name)
+                  return (
+                    <div key={f.path} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ fontSize: 8, color: extColor(ext), fontWeight: 700, width: 20, textAlign: 'right', flexShrink: 0 }}>
+                        {ext || '—'}
+                      </span>
+                      <span style={{ fontSize: 10, color: '#999', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {f.name}
+                      </span>
+                    </div>
+                  )
+                })}
+                {files.length > 3 && (
+                  <span style={{ fontSize: 9, color: '#777' }}>+{files.length - 3} more</span>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ---- File list panel ----
+
+interface FileListPanelProps {
+  files: FileEntry[]
+  loading: boolean
+  selectedFile: string | null
+  selectedGenre: GenreInfo | undefined
+  onSelect: (path: string) => void
+}
+
+function FileListPanel({ files, loading, selectedFile, selectedGenre, onSelect }: FileListPanelProps): JSX.Element {
+  return (
+    <div style={{
+      width: 220, flexShrink: 0,
+      borderRight: '1px solid #1a1a1a',
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: '7px 10px', fontSize: 9, color: '#888', letterSpacing: 1,
+        borderBottom: '1px solid #1a1a1a',
+        display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+      }}>
+        <span>FILES</span>
+        {files.length > 0 && <span style={{ color: '#777' }}>{files.length}</span>}
+      </div>
+
+      {selectedGenre && (
+        <div style={{
+          padding: '3px 10px', fontSize: 9, color: '#777', fontFamily: 'monospace',
+          borderBottom: '1px solid #111',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0,
+        }}>
+          {selectedGenre.dir}
+        </div>
+      )}
+
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        {loading ? (
+          <div style={{ padding: '10px', fontSize: 11, color: '#333' }}>Loading...</div>
+        ) : files.length === 0 ? (
+          <div style={{ padding: '10px', fontSize: 11, color: '#777' }}>No files</div>
+        ) : files.map((f) => {
+          const ext = fileExt(f.name)
+          const active = selectedFile === f.path
+          return (
+            <div
+              key={f.path}
+              onClick={() => onSelect(f.path)}
+              style={{
+                padding: '7px 10px', cursor: 'pointer',
+                background: active ? '#1a1a1a' : 'transparent',
+                borderBottom: '1px solid #111',
+                borderLeft: `2px solid ${active ? (selectedGenre?.color ?? '#444') : 'transparent'}`,
+              }}
+              onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = '#141414' }}
+              onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                <span style={{ fontSize: 9, color: extColor(ext), fontWeight: 700, width: 22, textAlign: 'right', flexShrink: 0 }}>
+                  {ext || '—'}
+                </span>
+                <span style={{ fontSize: 11, color: active ? '#eee' : '#999', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {f.name}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, paddingLeft: 27 }}>
+                <span style={{ fontSize: 9, color: '#777' }}>{formatSize(f.sizeBytes)}</span>
+                <span style={{ fontSize: 9, color: '#777' }}>{timeAgo(f.modifiedMs)}</span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ---- Preview panel ----
+
+interface PreviewPanelProps {
+  selectedFile: string | null
+  fileContent: string | null
+  fileError: string | null
+  loading: boolean
+}
+
+function PreviewPanel({ selectedFile, fileContent, fileError, loading }: PreviewPanelProps): JSX.Element {
+  const fileName = selectedFile ? selectedFile.split('/').pop() ?? selectedFile : null
+  const ext = fileName ? fileExt(fileName) : ''
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+      <div style={{
+        padding: '7px 14px', fontSize: 9, borderBottom: '1px solid #1a1a1a',
+        display: 'flex', alignItems: 'center', gap: 8,
+        flexShrink: 0, color: '#888', letterSpacing: 1,
+      }}>
+        {fileName ? (
+          <>
+            <span style={{ color: extColor(ext), fontWeight: 700 }}>{ext || 'FILE'}</span>
+            <span style={{ color: '#aaa', fontSize: 11 }}>{fileName}</span>
+            <span style={{ color: '#666', fontFamily: 'monospace', fontSize: 9, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+              {selectedFile}
+            </span>
+            <button
+              onClick={() => invoke('open_file', { path: selectedFile })}
+              style={{
+                background: 'none', border: '1px solid #333', color: '#777', cursor: 'pointer',
+                fontSize: 9, padding: '2px 7px', borderRadius: 3, flexShrink: 0,
+                letterSpacing: 0.5,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#555'; e.currentTarget.style.color = '#aaa' }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#777' }}
+              title="Open in default editor"
+            >
+              OPEN
+            </button>
+          </>
+        ) : (
+          <span>PREVIEW</span>
+        )}
+      </div>
+
+      <div style={{
+        flex: 1, overflow: 'auto', padding: '14px 18px',
+        fontFamily: 'JetBrains Mono, Menlo, Monaco, monospace',
+        fontSize: 12, lineHeight: 1.75,
+        color: fileError ? '#ff4444' : '#ccc',
+        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+      }}>
+        {!selectedFile ? (
+          <span style={{ color: '#777' }}>← Select a file to preview</span>
+        ) : loading ? (
+          <span style={{ color: '#333' }}>Loading...</span>
+        ) : fileError ? (
+          fileError
+        ) : (
+          fileContent ?? ''
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---- Main OutputView ----
 
 interface OutputViewProps {
   cellStates: Record<string, CellState>
@@ -54,69 +288,113 @@ interface OutputViewProps {
 }
 
 export default function OutputView({ cellStates, gridRows, gridCols, outputDir }: OutputViewProps): JSX.Element {
+  const [allFiles, setAllFiles] = useState<Record<string, FileEntry[]>>({})
+  const [loadingGenres, setLoadingGenres] = useState<Set<string>>(new Set())
+  const [summary, setSummary] = useState<string>('')
+  const [summarizing, setSummarizing] = useState(false)
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
-  const [files, setFiles] = useState<FileEntry[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState<string | null>(null)
-  const [loadingFiles, setLoadingFiles] = useState(false)
   const [loadingContent, setLoadingContent] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
 
-  // Unique genres from cellStates (deduped by theme/role name)
+  const language = localStorage.getItem('chaos-grid-language') ?? 'Japanese'
+
   const genres = useMemo<GenreInfo[]>(() => {
     const seen = new Set<string>()
     const result: GenreInfo[] = []
     getCellIds(gridRows, gridCols).forEach((id) => {
-      const theme = cellStates[id]?.theme
-      const role = getCellRole(id, gridCols).toLowerCase()
-      const name = (theme || role).toLowerCase()
+      const dir = cellWorkDir(id, cellStates[id], outputDir, gridCols)
+      const name = dir.split('/').pop() ?? id
       if (!seen.has(name)) {
         seen.add(name)
-        result.push({
-          name,
-          dir: `${outputDir.replace(/\/+$/, '')}/${name}`,
-          color: roleColor(getCellRole(id, gridCols)),
-        })
+        result.push({ name, dir, color: roleColor(getCellRole(id, gridCols)) })
       }
     })
     return result
   }, [cellStates, gridRows, gridCols, outputDir])
 
-  // Auto-select first genre on load
+  const summarizeAll = useCallback((genreList: GenreInfo[]) => {
+    setSummarizing(true)
+    invoke<string>('summarize_all_genres', {
+      genres: genreList.map((g) => ({ name: g.name, dir: g.dir })),
+      language,
+    })
+      .then((result) => {
+        setSummary(result)
+        setSummarizing(false)
+      })
+      .catch((e) => {
+        console.error('summarize_all_genres failed:', e)
+        setSummarizing(false)
+      })
+  }, [language])
+
+  // Load files for all genres in parallel, then summarize all at once
+  const loadAll = useCallback((genreList: GenreInfo[]) => {
+    setLoadingGenres(new Set(genreList.map((g) => g.name)))
+    setSummary('')
+    let remaining = genreList.length
+    const nextAllFiles: Record<string, FileEntry[]> = {}
+
+    genreList.forEach((g) => {
+      invoke<FileEntry[]>('list_dir_files_recursive', { path: g.dir })
+        .then((list) => {
+          nextAllFiles[g.name] = list.sort((a, b) => b.modifiedMs - a.modifiedMs)
+        })
+        .catch(() => { nextAllFiles[g.name] = [] })
+        .finally(() => {
+          setAllFiles((prev) => ({ ...prev, [g.name]: nextAllFiles[g.name] }))
+          setLoadingGenres((prev) => { const next = new Set(prev); next.delete(g.name); return next })
+          remaining--
+          if (remaining === 0) {
+            const hasAny = genreList.some((g) => (nextAllFiles[g.name] ?? []).length > 0)
+            if (hasAny) summarizeAll(genreList)
+          }
+        })
+    })
+  }, [summarizeAll])
+
+  const genreSignatureRef = useRef<string>('')
+  useEffect(() => {
+    if (genres.length === 0) return
+    const sig = genres.map((g) => `${g.name}:${g.dir}`).join(',')
+    if (sig === genreSignatureRef.current) return
+    genreSignatureRef.current = sig
+    loadAll(genres)
+  }, [genres, loadAll])
+
+  // Auto-refresh files every 30 seconds (without re-summarizing)
+  useEffect(() => {
+    if (genres.length === 0) return
+    const interval = setInterval(() => {
+      genres.forEach((g) => {
+        invoke<FileEntry[]>('list_dir_files_recursive', { path: g.dir })
+          .then((list) => {
+            setAllFiles((prev) => ({ ...prev, [g.name]: list.sort((a, b) => b.modifiedMs - a.modifiedMs) }))
+          })
+          .catch(() => {})
+      })
+    }, 30_000)
+    return () => clearInterval(interval)
+  }, [genres])
+
+  // Auto-select first genre
   useEffect(() => {
     if (genres.length > 0 && selectedGenre === null) {
       setSelectedGenre(genres[0].name)
     }
   }, [genres, selectedGenre])
 
-  const loadFiles = useCallback((genre: GenreInfo) => {
-    setLoadingFiles(true)
-    setFiles([])
-    setSelectedFile(null)
+  // Auto-select first file when genre changes
+  useEffect(() => {
+    const files = allFiles[selectedGenre ?? ''] ?? []
+    setSelectedFile(files.length > 0 ? files[0].path : null)
     setFileContent(null)
     setFileError(null)
-    invoke<FileEntry[]>('list_dir_files_recursive', { path: genre.dir })
-      .then((list) => {
-        const sorted = list
-          .filter((f) => !f.isDir)
-          .sort((a, b) => b.modifiedMs - a.modifiedMs)
-        setFiles(sorted)
-        setLoadingFiles(false)
-        if (sorted.length > 0) setSelectedFile(sorted[0].path)
-      })
-      .catch(() => {
-        setFiles([])
-        setLoadingFiles(false)
-      })
-  }, [])
+  }, [selectedGenre, allFiles])
 
-  // Reload files when genre or outputDir changes
-  useEffect(() => {
-    const genre = genres.find((g) => g.name === selectedGenre)
-    if (genre) loadFiles(genre)
-  }, [selectedGenre, genres, loadFiles])
-
-  // Load file content when selection changes
+  // Load file content
   useEffect(() => {
     if (!selectedFile) { setFileContent(null); setFileError(null); return }
     setLoadingContent(true)
@@ -136,175 +414,37 @@ export default function OutputView({ cellStates, gridRows, gridCols, outputDir }
   }
 
   const selectedGenreInfo = genres.find((g) => g.name === selectedGenre)
-  const selectedFileName = selectedFile ? selectedFile.split('/').pop() ?? selectedFile : null
-  const selectedExt = selectedFileName ? fileExt(selectedFileName) : ''
+  const currentFiles = allFiles[selectedGenre ?? ''] ?? []
+  const isLoading = loadingGenres.size > 0
 
   return (
-    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', background: '#0a0a0a' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#0a0a0a' }}>
+      <SummaryBar
+        genres={genres}
+        allFiles={allFiles}
+        summary={summary}
+        summarizing={summarizing}
+        loading={isLoading}
+        selected={selectedGenre}
+        onSelect={setSelectedGenre}
+        onRefresh={() => loadAll(genres)}
+      />
 
-      {/* Left: Genre list */}
-      <div style={{
-        width: 160, flexShrink: 0,
-        borderRight: '1px solid #1a1a1a',
-        display: 'flex', flexDirection: 'column',
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          padding: '7px 10px', fontSize: 9, color: '#444',
-          letterSpacing: 1, borderBottom: '1px solid #1a1a1a', flexShrink: 0,
-        }}>
-          GENRES
-        </div>
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          {genres.map((g) => {
-            const active = selectedGenre === g.name
-            return (
-              <div
-                key={g.name}
-                onClick={() => setSelectedGenre(g.name)}
-                style={{
-                  padding: '9px 10px',
-                  cursor: 'pointer',
-                  background: active ? '#161616' : 'transparent',
-                  borderLeft: `2px solid ${active ? g.color : 'transparent'}`,
-                  display: 'flex', alignItems: 'center', gap: 7,
-                  borderBottom: '1px solid #111',
-                }}
-                onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = '#121212' }}
-                onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent' }}
-              >
-                <span style={{
-                  fontSize: 11, fontWeight: 700,
-                  color: active ? g.color : '#555',
-                  letterSpacing: 0.5,
-                }}>
-                  {g.name.toUpperCase()}
-                </span>
-              </div>
-            )
-          })}
-        </div>
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <FileListPanel
+          files={currentFiles}
+          loading={loadingGenres.has(selectedGenre ?? '')}
+          selectedFile={selectedFile}
+          selectedGenre={selectedGenreInfo}
+          onSelect={setSelectedFile}
+        />
+        <PreviewPanel
+          selectedFile={selectedFile}
+          fileContent={fileContent}
+          fileError={fileError}
+          loading={loadingContent}
+        />
       </div>
-
-      {/* Center: File list */}
-      <div style={{
-        width: 220, flexShrink: 0,
-        borderRight: '1px solid #1a1a1a',
-        display: 'flex', flexDirection: 'column',
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          padding: '7px 10px', fontSize: 9, color: '#444',
-          letterSpacing: 1, borderBottom: '1px solid #1a1a1a',
-          display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-        }}>
-          <span>FILES</span>
-          {files.length > 0 && (
-            <span style={{ color: '#333' }}>{files.length}</span>
-          )}
-        </div>
-
-        {selectedGenreInfo && (
-          <div style={{
-            padding: '3px 10px', fontSize: 9, color: '#2a2a2a',
-            fontFamily: 'monospace', borderBottom: '1px solid #111',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            flexShrink: 0,
-          }}>
-            {selectedGenreInfo.dir}
-          </div>
-        )}
-
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          {loadingFiles ? (
-            <div style={{ padding: '10px', fontSize: 11, color: '#333' }}>Loading...</div>
-          ) : files.length === 0 ? (
-            <div style={{ padding: '10px', fontSize: 11, color: '#2a2a2a' }}>No files</div>
-          ) : files.map((f) => {
-            const ext = fileExt(f.name)
-            const active = selectedFile === f.path
-            return (
-              <div
-                key={f.path}
-                onClick={() => setSelectedFile(f.path)}
-                style={{
-                  padding: '7px 10px',
-                  cursor: 'pointer',
-                  background: active ? '#1a1a1a' : 'transparent',
-                  borderBottom: '1px solid #111',
-                  borderLeft: `2px solid ${active ? (selectedGenreInfo?.color ?? '#444') : 'transparent'}`,
-                }}
-                onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = '#141414' }}
-                onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
-                  <span style={{
-                    fontSize: 9, color: extColor(ext), fontWeight: 700,
-                    width: 22, textAlign: 'right', flexShrink: 0,
-                  }}>
-                    {ext || '—'}
-                  </span>
-                  <span style={{
-                    fontSize: 11, color: active ? '#eee' : '#999',
-                    flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
-                    {f.name}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: 8, paddingLeft: 27 }}>
-                  <span style={{ fontSize: 9, color: '#333' }}>{formatSize(f.sizeBytes)}</span>
-                  <span style={{ fontSize: 9, color: '#2a2a2a' }}>{timeAgo(f.modifiedMs)}</span>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Right: Content preview */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-        {/* Preview header */}
-        <div style={{
-          padding: '7px 14px', fontSize: 9,
-          borderBottom: '1px solid #1a1a1a',
-          display: 'flex', alignItems: 'center', gap: 8,
-          flexShrink: 0, color: '#444', letterSpacing: 1,
-        }}>
-          {selectedFileName ? (
-            <>
-              <span style={{ color: extColor(selectedExt), fontWeight: 700 }}>{selectedExt || 'FILE'}</span>
-              <span style={{ color: '#666', fontSize: 11 }}>{selectedFileName}</span>
-              <span style={{ color: '#2a2a2a', fontFamily: 'monospace', fontSize: 9, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {selectedFile}
-              </span>
-            </>
-          ) : (
-            <span>PREVIEW</span>
-          )}
-        </div>
-
-        {/* Content */}
-        <div style={{
-          flex: 1, overflow: 'auto',
-          padding: '14px 18px',
-          fontFamily: 'JetBrains Mono, Menlo, Monaco, monospace',
-          fontSize: 12, lineHeight: 1.75,
-          color: fileError ? '#ff4444' : '#ccc',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-        }}>
-          {!selectedFile ? (
-            <span style={{ color: '#2a2a2a' }}>← Select a file to preview</span>
-          ) : loadingContent ? (
-            <span style={{ color: '#333' }}>Loading...</span>
-          ) : fileError ? (
-            fileError
-          ) : (
-            fileContent ?? ''
-          )}
-        </div>
-      </div>
-
     </div>
   )
 }

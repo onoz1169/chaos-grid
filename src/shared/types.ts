@@ -55,3 +55,15 @@ export const ROLE_COLORS: Record<string, string> = {
 export function roleColor(role: string): string {
   return ROLE_COLORS[role] ?? '#888'
 }
+
+export function cellWorkDir(
+  cellId: string,
+  cellState: CellState | undefined,
+  outputDir: string,
+  gridCols: number
+): string {
+  const theme = cellState?.theme
+  const role = getCellRole(cellId, gridCols).toLowerCase()
+  const folderName = theme || role
+  return `${outputDir.replace(/\/+$/, '')}/${folderName}`
+}

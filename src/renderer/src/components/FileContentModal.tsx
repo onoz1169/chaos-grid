@@ -1,20 +1,6 @@
 import { useState, useEffect, type JSX } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-
-function fileExt(name: string): string {
-  const i = name.lastIndexOf('.')
-  return i >= 0 ? name.slice(i + 1).toLowerCase() : ''
-}
-
-function extColor(ext: string): string {
-  const map: Record<string, string> = {
-    ts: '#4488ff', tsx: '#4488ff', js: '#ffcc00', jsx: '#ffcc00',
-    py: '#4488bb', rs: '#bb4444', go: '#44bbbb',
-    md: '#aaa', json: '#bb8844', yaml: '#bb8844', yml: '#bb8844',
-    css: '#bb44bb', html: '#bb6644', sh: '#44bb88',
-  }
-  return map[ext] ?? '#666'
-}
+import { fileExt, extColor } from '../utils/files'
 
 interface FileContentModalProps {
   path: string
@@ -52,7 +38,6 @@ export default function FileContentModal({ path, onClose }: FileContentModalProp
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Modal header */}
         <div style={{
           padding: '8px 12px', borderBottom: '1px solid #222',
           display: 'flex', alignItems: 'center', gap: 8,
@@ -64,7 +49,6 @@ export default function FileContentModal({ path, onClose }: FileContentModalProp
           </span>
           <button className="btn-icon" onClick={onClose} title="Close">✕</button>
         </div>
-        {/* Content */}
         <div style={{
           flex: 1, overflow: 'auto', padding: 16,
           fontFamily: 'JetBrains Mono, Menlo, Monaco, monospace',

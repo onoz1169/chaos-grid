@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, type JSX } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { CellState, AnalyzeResult } from '../../shared/types'
-import { getCellIds, getCellRole } from '../../shared/types'
+import { getCellIds, cellWorkDir } from '../../shared/types'
 import TopBar from './components/TopBar'
 import Grid, { type ViewMode } from './components/Grid'
 import StatusOverlay from './components/StatusOverlay'
@@ -80,13 +80,7 @@ export default function App(): JSX.Element {
 
   const handleLaunchAll = useCallback(async () => {
     const cellIds = getCellIds(gridRows, gridCols)
-    const base = outputDir.replace(/\/$/, '')
-    const workDirs = cellIds.map((id) => {
-      const theme = cellStates[id]?.theme
-      const role = getCellRole(id, gridCols).toLowerCase()
-      const folderName = theme || role
-      return `${base}/${folderName}`
-    })
+    const workDirs = cellIds.map((id) => cellWorkDir(id, cellStates[id], outputDir, gridCols))
     await invoke('launch_cells', { cellIds, workDirs })
   }, [gridRows, gridCols, outputDir, cellStates])
 

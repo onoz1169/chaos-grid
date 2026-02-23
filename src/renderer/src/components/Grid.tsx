@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import type { CellState } from '../../../shared/types'
-import { getCellIds, getColLabels, getCellRole, roleColor } from '../../../shared/types'
+import { getCellIds, getColLabels, getCellRole, roleColor, cellWorkDir } from '../../../shared/types'
 import Cell from './Cell'
 import SynthesisPanel from './SynthesisPanel'
 import OutputView from './OutputView'
@@ -48,10 +48,7 @@ function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, g
 
       <div className="grid" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
         {cellIds.map((id) => {
-          const theme = cellStates[id]?.theme
-          const role = getCellRole(id, gridCols).toLowerCase()
-          const folderName = theme || role
-          const workDir = outputDir ? `${outputDir.replace(/\/$/, '')}/${folderName}` : undefined
+          const workDir = outputDir ? cellWorkDir(id, cellStates[id], outputDir, gridCols) : undefined
           return (
             <Cell
               key={id}

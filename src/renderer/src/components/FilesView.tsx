@@ -1,15 +1,9 @@
 import { useState, useEffect, useCallback, type JSX } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { CellState } from '../../../shared/types'
-import { getCellIds, getCellRole, roleColor } from '../../../shared/types'
+import { getCellIds, getCellRole, roleColor, cellWorkDir } from '../../../shared/types'
+import { fileExt, extColor, timeAgo, formatSize } from '../utils/files'
 import FileContentModal from './FileContentModal'
-
-function cellWorkDir(cellId: string, cellState: CellState | undefined, outputDir: string, gridCols: number): string {
-  const theme = cellState?.theme
-  const role = getCellRole(cellId, gridCols).toLowerCase()
-  const folderName = theme || role
-  return `${outputDir.replace(/\/$/, '')}/${folderName}`
-}
 
 interface FileEntry {
   name: string
@@ -17,35 +11,6 @@ interface FileEntry {
   modifiedMs: number
   sizeBytes: number
   isDir: boolean
-}
-
-function timeAgo(ms: number): string {
-  const diff = Date.now() - ms
-  if (diff < 60_000) return `${Math.floor(diff / 1000)}s ago`
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
-  return `${Math.floor(diff / 86_400_000)}d ago`
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`
-  if (bytes < 1_048_576) return `${(bytes / 1024).toFixed(1)}K`
-  return `${(bytes / 1_048_576).toFixed(1)}M`
-}
-
-function fileExt(name: string): string {
-  const i = name.lastIndexOf('.')
-  return i >= 0 ? name.slice(i + 1).toLowerCase() : ''
-}
-
-function extColor(ext: string): string {
-  const map: Record<string, string> = {
-    ts: '#4488ff', tsx: '#4488ff', js: '#ffcc00', jsx: '#ffcc00',
-    py: '#4488bb', rs: '#bb4444', go: '#44bbbb',
-    md: '#aaa', json: '#bb8844', yaml: '#bb8844', yml: '#bb8844',
-    css: '#bb44bb', html: '#bb6644', sh: '#44bb88',
-  }
-  return map[ext] ?? '#666'
 }
 
 interface CellFilesPanelProps {
@@ -100,7 +65,6 @@ function CellFilesPanel({ cellId, cellState, outputDir, gridCols }: CellFilesPan
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden', minHeight: 0,
       }}>
-        {/* Panel header */}
         <div style={{
           padding: '4px 8px', borderBottom: '1px solid #1a1a1a',
           display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
@@ -122,7 +86,6 @@ function CellFilesPanel({ cellId, cellState, outputDir, gridCols }: CellFilesPan
           </button>
         </div>
 
-        {/* Dir path */}
         <div style={{
           padding: '2px 8px', borderBottom: '1px solid #1a1a1a',
           fontSize: 9, color: '#444', fontFamily: 'monospace',
@@ -132,7 +95,6 @@ function CellFilesPanel({ cellId, cellState, outputDir, gridCols }: CellFilesPan
           {cellDir}
         </div>
 
-        {/* File list */}
         <div style={{ flex: 1, overflow: 'auto' }}>
           {error ? (
             <div style={{ padding: '8px', fontSize: 11, color: '#333' }}>{error}</div>
