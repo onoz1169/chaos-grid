@@ -48,9 +48,9 @@ export const CELL_IDS = getCellIds(3, 3)
 export const COL_LABELS = getColLabels(3)
 
 export const ROLE_COLORS: Record<string, string> = {
-  Stimulus: '#4488bb',
-  Will: '#bb8844',
-  Supply: '#00ff88',
+  Stimulus: '#3366aa',
+  Will: '#00ff88',
+  Supply: '#cc3344',
 }
 export function roleColor(role: string): string {
   return ROLE_COLORS[role] ?? '#888'

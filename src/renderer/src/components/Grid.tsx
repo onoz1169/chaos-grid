@@ -16,9 +16,10 @@ interface GridProps {
   gridRows: number
   gridCols: number
   outputDir: string
+  toolCmd: string
 }
 
-function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, gridCols, outputDir }: {
+function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, gridCols, outputDir, toolCmd }: {
   cellStates: Record<string, CellState>
   onThemeChange: (id: string, theme: string) => void
   onActivity: (id: string) => void
@@ -26,6 +27,7 @@ function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, g
   gridRows: number
   gridCols: number
   outputDir: string
+  toolCmd: string
 }): JSX.Element {
   const cellIds = getCellIds(gridRows, gridCols)
   const colLabels = getColLabels(gridCols)
@@ -37,11 +39,21 @@ function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, g
   return (
     <div className="flow-grid-wrapper">
       <div className="col-headers" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
-        {colLabels.map((label, i) => (
-          <div key={i} className="col-header" style={{ color: roleColor(label), borderBottom: `1px solid ${roleColor(label)}44` }}>
-            {label}
-          </div>
-        ))}
+        {colLabels.map((label, i) => {
+          const isWill = label === 'Will'
+          return (
+            <div key={i} className="col-header" style={{
+              color: roleColor(label),
+              borderBottom: `2px solid ${roleColor(label)}${isWill ? '88' : '33'}`,
+              fontSize: isWill ? 14 : 11,
+              fontWeight: isWill ? 700 : 600,
+              letterSpacing: isWill ? 4 : 3,
+              background: isWill ? '#050f07' : undefined,
+            }}>
+              {label}
+            </div>
+          )
+        })}
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
@@ -55,6 +67,7 @@ function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, g
               onActivity={onActivity}
               compact={compact}
               workDir={workDir}
+              toolCmd={toolCmd}
             />
           )
         })}
@@ -63,13 +76,13 @@ function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, g
   )
 }
 
-export default function Grid({ cellStates, cellActivity: _cellActivity, viewMode, onThemeChange, onActivity, language: _language, gridRows, gridCols, outputDir }: GridProps): JSX.Element {
+export default function Grid({ cellStates, cellActivity: _cellActivity, viewMode, onThemeChange, onActivity, language: _language, gridRows, gridCols, outputDir, toolCmd }: GridProps): JSX.Element {
   // Keep GridInner mounted during control view to preserve terminal sessions.
   // Use display:none instead of unmounting to prevent spawn_pty from resetting the shell.
   return (
     <>
       <div style={{ display: viewMode === 'grid' ? undefined : 'none' }}>
-        <GridInner cellStates={cellStates} onThemeChange={onThemeChange} onActivity={onActivity} gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} />
+        <GridInner cellStates={cellStates} onThemeChange={onThemeChange} onActivity={onActivity} gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} toolCmd={toolCmd} />
       </div>
       {viewMode === 'control' && <ControlView cellStates={cellStates} gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} />}
     </>

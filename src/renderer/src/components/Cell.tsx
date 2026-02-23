@@ -13,9 +13,10 @@ interface CellProps {
   onActivity: (id: string) => void
   compact?: boolean
   workDir?: string
+  toolCmd?: string
 }
 
-export default function Cell({ cellState, onThemeChange, onActivity, compact = false, workDir }: CellProps): JSX.Element {
+export default function Cell({ cellState, onThemeChange, onActivity, compact = false, workDir, toolCmd }: CellProps): JSX.Element {
   const terminalRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const spawnedRef = useRef(false)
@@ -87,7 +88,7 @@ export default function Cell({ cellState, onThemeChange, onActivity, compact = f
   }, [cellState.id])
 
   const handleLaunch = (): void => {
-    invoke('launch_cell', { cellId: cellState.id, workDir: workDir || null })
+    invoke('launch_cell', { cellId: cellState.id, workDir: workDir || null, toolCmd: toolCmd || null })
   }
 
   const handleKill = (): void => {

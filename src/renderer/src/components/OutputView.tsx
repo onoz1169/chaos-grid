@@ -47,11 +47,11 @@ function SummaryBar({ genres, allFiles, summary, summarizing, loading, selected,
       }}>
         <div style={{ flex: 1 }}>
           {summarizing ? (
-            <span style={{ fontSize: 11, color: '#666' }}>Summarizing...</span>
+            <span style={{ fontSize: 13, color: '#888' }}>Summarizing...</span>
           ) : summary ? (
-            <span style={{ fontSize: 12, color: '#ccc', lineHeight: 1.6 }}>{summary}</span>
+            <span style={{ fontSize: 13, color: '#ccc', lineHeight: 1.6 }}>{summary}</span>
           ) : (
-            <span style={{ fontSize: 11, color: '#555' }}>No output yet</span>
+            <span style={{ fontSize: 14, color: '#888' }}>No output yet</span>
           )}
         </div>
         <button
@@ -78,6 +78,7 @@ function SummaryBar({ genres, allFiles, summary, summarizing, loading, selected,
           const maxFiles = Math.max(...genres.map((gg) => (allFiles[gg.name] ?? []).length), 1)
           const barPct = files.length > 0 ? Math.max(8, Math.round((files.length / maxFiles) * 100)) : 0
 
+          const isWill = g.name.toLowerCase() === 'will'
           const card = (
             <div
               key={g.name}
@@ -86,33 +87,33 @@ function SummaryBar({ genres, allFiles, summary, summarizing, loading, selected,
                 flex: 1, minWidth: 160,
                 padding: '8px 12px',
                 borderRight: idx < genres.length - 1 ? '1px solid #141414' : 'none',
-                borderBottom: `2px solid ${active ? g.color : 'transparent'}`,
+                borderBottom: `2px solid ${active ? g.color : isWill ? '#00ff8833' : 'transparent'}`,
                 cursor: 'pointer',
-                background: active ? '#111' : 'transparent',
+                background: active ? (isWill ? '#071a0e' : '#111') : (isWill ? '#040d06' : 'transparent'),
               }}
-              onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = '#0d0d0d' }}
-              onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent' }}
+              onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = isWill ? '#071a0e' : '#0d0d0d' }}
+              onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = isWill ? '#040d06' : 'transparent' }}
             >
               {/* Genre header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: g.color, letterSpacing: 0.5 }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: g.color, letterSpacing: 1 }}>
                   {g.name.toUpperCase()}
                 </span>
-                <span style={{ fontSize: 9, color: '#888' }}>
+                <span style={{ fontSize: 10, color: '#999' }}>
                   {files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''}` : 'no files'}
                 </span>
                 {totalSize > 0 && (
-                  <span style={{ fontSize: 9, color: '#777' }}>{formatSize(totalSize)}</span>
+                  <span style={{ fontSize: 9, color: '#999' }}>{formatSize(totalSize)}</span>
                 )}
                 {lastModified && (
-                  <span style={{ fontSize: 9, color: '#777', marginLeft: 'auto' }}>{timeAgo(lastModified)}</span>
+                  <span style={{ fontSize: 9, color: '#999', marginLeft: 'auto' }}>{timeAgo(lastModified)}</span>
                 )}
               </div>
 
               {/* Pipeline bar */}
-              <div style={{ height: 3, background: '#111', borderRadius: 2, marginBottom: 5, overflow: 'hidden' }}>
+              <div style={{ height: isWill ? 5 : 3, background: '#1e1e1e', borderRadius: 2, marginBottom: 5, overflow: 'hidden' }}>
                 {barPct > 0 && (
-                  <div style={{ width: `${barPct}%`, height: '100%', background: g.color, borderRadius: 2, opacity: 0.7, transition: 'width 0.4s' }} />
+                  <div style={{ width: `${barPct}%`, height: '100%', background: g.color, borderRadius: 2, opacity: isWill ? 1 : 0.6, transition: 'width 0.4s' }} />
                 )}
               </div>
 
@@ -125,14 +126,14 @@ function SummaryBar({ genres, allFiles, summary, summarizing, loading, selected,
                       <span style={{ fontSize: 8, color: extColor(ext), fontWeight: 700, width: 20, textAlign: 'right', flexShrink: 0 }}>
                         {ext || '—'}
                       </span>
-                      <span style={{ fontSize: 10, color: '#999', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: 12, color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {f.name}
                       </span>
                     </div>
                   )
                 })}
                 {files.length > 3 && (
-                  <span style={{ fontSize: 9, color: '#777' }}>+{files.length - 3} more</span>
+                  <span style={{ fontSize: 9, color: '#888' }}>+{files.length - 3} more</span>
                 )}
               </div>
             </div>
@@ -142,7 +143,7 @@ function SummaryBar({ genres, allFiles, summary, summarizing, loading, selected,
             const arrow = (
               <div key={`${g.name}-arrow`} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#2a2a2a', fontSize: 14, padding: '0 2px', flexShrink: 0,
+                color: '#3a3a3a', fontSize: 14, padding: '0 2px', flexShrink: 0,
                 userSelect: 'none',
               }}>
                 →
@@ -175,17 +176,17 @@ function FileListPanel({ files, loading, selectedFile, selectedGenre, onSelect }
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
       <div style={{
-        padding: '7px 10px', fontSize: 9, color: '#888', letterSpacing: 1,
+        padding: '8px 10px', fontSize: 11, color: '#aaa', letterSpacing: 1,
         borderBottom: '1px solid #1a1a1a',
         display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
       }}>
         <span>FILES</span>
-        {files.length > 0 && <span style={{ color: '#777' }}>{files.length}</span>}
+        {files.length > 0 && <span style={{ color: '#888' }}>{files.length}</span>}
       </div>
 
       {selectedGenre && (
         <div style={{
-          padding: '3px 10px', fontSize: 9, color: '#777', fontFamily: 'monospace',
+          padding: '3px 10px', fontSize: 9, color: '#999', fontFamily: 'monospace',
           borderBottom: '1px solid #111',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0,
         }}>
@@ -195,7 +196,7 @@ function FileListPanel({ files, loading, selectedFile, selectedGenre, onSelect }
 
       <div style={{ flex: 1, overflow: 'auto' }}>
         {loading ? (
-          <div style={{ padding: '10px', fontSize: 11, color: '#333' }}>Loading...</div>
+          <div style={{ padding: '10px', fontSize: 11, color: '#777' }}>Loading...</div>
         ) : files.length === 0 ? (
           <div style={{ padding: '10px', fontSize: 11, color: '#777' }}>No files</div>
         ) : files.map((f) => {
@@ -218,13 +219,13 @@ function FileListPanel({ files, loading, selectedFile, selectedGenre, onSelect }
                 <span style={{ fontSize: 9, color: extColor(ext), fontWeight: 700, width: 22, textAlign: 'right', flexShrink: 0 }}>
                   {ext || '—'}
                 </span>
-                <span style={{ fontSize: 11, color: active ? '#eee' : '#999', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 13, color: active ? '#fff' : '#ddd', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {f.name}
                 </span>
               </div>
               <div style={{ display: 'flex', gap: 8, paddingLeft: 27 }}>
-                <span style={{ fontSize: 9, color: '#777' }}>{formatSize(f.sizeBytes)}</span>
-                <span style={{ fontSize: 9, color: '#777' }}>{timeAgo(f.modifiedMs)}</span>
+                <span style={{ fontSize: 9, color: '#999' }}>{formatSize(f.sizeBytes)}</span>
+                <span style={{ fontSize: 9, color: '#999' }}>{timeAgo(f.modifiedMs)}</span>
               </div>
             </div>
           )
@@ -254,8 +255,8 @@ function PreviewPanel({ selectedFile, fileContent, fileError, loading, rightMode
   const tabStyle = (active: boolean) => ({
     background: 'none', border: 'none', cursor: 'pointer',
     fontSize: 9, padding: '0 8px', letterSpacing: 1,
-    color: active ? '#ccc' : '#555',
-    borderBottom: `1px solid ${active ? '#555' : 'transparent'}`,
+    color: active ? '#ccc' : '#777',
+    borderBottom: `1px solid ${active ? '#666' : 'transparent'}`,
   })
 
   return (
@@ -357,7 +358,7 @@ function ChatPanel({ genres, language }: ChatPanelProps): JSX.Element {
       {/* Messages */}
       <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {messages.length === 0 && (
-          <div style={{ color: '#555', fontSize: 11, marginTop: 8 }}>
+          <div style={{ color: '#888', fontSize: 11, marginTop: 8, lineHeight: 1.7 }}>
             現在のプロジェクト状況について何でも聞いてください。<br />
             例：「どこが詰まっていますか？」「次に何をすべきですか？」
           </div>
@@ -384,7 +385,7 @@ function ChatPanel({ genres, language }: ChatPanelProps): JSX.Element {
             <div style={{
               padding: '8px 12px', borderRadius: '8px 8px 8px 2px',
               background: '#1a1a1a', border: '1px solid #242424',
-              fontSize: 12, color: '#555',
+              fontSize: 12, color: '#777',
             }}>
               ...
             </div>
@@ -402,7 +403,7 @@ function ChatPanel({ genres, language }: ChatPanelProps): JSX.Element {
           <button
             onClick={() => setMessages([])}
             style={{
-              background: 'none', border: 'none', color: '#444', cursor: 'pointer',
+              background: 'none', border: 'none', color: '#777', cursor: 'pointer',
               fontSize: 11, padding: '0 4px', flexShrink: 0,
             }}
             title="Clear conversation"

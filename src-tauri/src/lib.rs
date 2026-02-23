@@ -12,7 +12,7 @@ const MAX_CELLS: usize = 30; // supports up to 6×5 grid
 const DEFAULT_COLS: u16 = 80;
 const DEFAULT_ROWS: u16 = 24;
 const SHELL_READY_DELAY_MS: u64 = 500;
-const LAUNCH_COMMAND: &str = "claude --dangerously-skip-permissions\n";
+const DEFAULT_TOOL_CMD: &str = "claude --dangerously-skip-permissions";
 
 // Used for filesystem operations only — not for shell commands (the shell expands ~ itself).
 fn expand_tilde(path: &str) -> String {
@@ -24,16 +24,13 @@ fn expand_tilde(path: &str) -> String {
     path.to_string()
 }
 
-fn make_launch_command(work_dir: Option<&str>) -> String {
+fn make_launch_command(work_dir: Option<&str>, tool_cmd: &str) -> String {
+    let cmd = if tool_cmd.trim().is_empty() { DEFAULT_TOOL_CMD } else { tool_cmd };
     match work_dir {
         Some(dir) if !dir.trim().is_empty() => {
-            // Let the shell expand ~ itself so the correct user's home dir is used
-            format!(
-                "mkdir -p {dir} && cd {dir} && claude --dangerously-skip-permissions\n",
-                dir = dir
-            )
+            format!("mkdir -p {dir} && cd {dir} && {cmd}\n", dir = dir, cmd = cmd)
         }
-        _ => LAUNCH_COMMAND.to_string(),
+        _ => format!("{cmd}\n", cmd = cmd),
     }
 }
 
@@ -199,6 +196,34 @@ async fn kill_pty(
 }
 
 #[tauri::command]
+async fn kill_all_ptys(
+    sessions: tauri::State<'_, PtySessions>,
+    cell_states: tauri::State<'_, CellStateMap>,
+) -> Result<(), String> {
+    let killed: Vec<String> = {
+        let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
+        let ids: Vec<String> = map.keys().cloned().collect();
+        for id in &ids {
+            if let Some(mut session) = map.remove(id) {
+                pty_manager::kill(&mut session);
+            }
+        }
+        ids
+    };
+    {
+        let mut states = cell_states.0.lock().map_err(|e| e.to_string())?;
+        for id in &killed {
+            if let Some(state) = states.get_mut(id) {
+                state.pid = None;
+                state.status = "idle".to_string();
+                state.updated_at = now_millis();
+            }
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
 async fn analyze(
     app: tauri::AppHandle,
     cell_states: tauri::State<'_, CellStateMap>,
@@ -256,6 +281,7 @@ async fn spawn_and_launch(
     cell_states: &CellStateMap,
     cell_id: &str,
     work_dir: Option<&str>,
+    tool_cmd: &str,
 ) -> Result<(), String> {
     // Spawn a new PTY only when the cell does not already have one.
     let has_pty = {
@@ -304,7 +330,7 @@ async fn spawn_and_launch(
 
     // Send the launch command into the PTY.
     {
-        let cmd = make_launch_command(work_dir);
+        let cmd = make_launch_command(work_dir, tool_cmd);
         let mut map = sessions.0.lock().map_err(|e| e.to_string())?;
         if let Some(session) = map.get_mut(cell_id) {
             let _ = session.writer.write_all(cmd.as_bytes());
@@ -321,12 +347,14 @@ async fn launch_cells(
     cell_states: tauri::State<'_, CellStateMap>,
     cell_ids: Vec<String>,
     work_dirs: Vec<String>,
+    tool_cmd: Option<String>,
 ) -> Result<Vec<String>, String> {
+    let cmd = tool_cmd.as_deref().unwrap_or(DEFAULT_TOOL_CMD);
     let mut launched = Vec::new();
 
     for (idx, cell_id) in cell_ids.iter().enumerate() {
         let work_dir = work_dirs.get(idx).map(|s| s.as_str());
-        spawn_and_launch(&app, &sessions, &cell_states, cell_id, work_dir).await?;
+        spawn_and_launch(&app, &sessions, &cell_states, cell_id, work_dir, cmd).await?;
         launched.push(cell_id.clone());
     }
 
@@ -338,12 +366,14 @@ async fn launch_all(
     app: tauri::AppHandle,
     sessions: tauri::State<'_, PtySessions>,
     cell_states: tauri::State<'_, CellStateMap>,
+    tool_cmd: Option<String>,
 ) -> Result<Vec<String>, String> {
+    let cmd = tool_cmd.as_deref().unwrap_or(DEFAULT_TOOL_CMD);
     let mut launched = Vec::new();
 
     for i in 0..MAX_CELLS {
         let cell_id = format!("cell-{}", i);
-        spawn_and_launch(&app, &sessions, &cell_states, &cell_id, None).await?;
+        spawn_and_launch(&app, &sessions, &cell_states, &cell_id, None, cmd).await?;
         launched.push(cell_id);
     }
 
@@ -357,8 +387,10 @@ async fn launch_cell(
     cell_states: tauri::State<'_, CellStateMap>,
     cell_id: String,
     work_dir: Option<String>,
+    tool_cmd: Option<String>,
 ) -> Result<(), String> {
-    spawn_and_launch(&app, &sessions, &cell_states, &cell_id, work_dir.as_deref()).await
+    let cmd = tool_cmd.as_deref().unwrap_or(DEFAULT_TOOL_CMD);
+    spawn_and_launch(&app, &sessions, &cell_states, &cell_id, work_dir.as_deref(), cmd).await
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -685,7 +717,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            spawn_pty, write_pty, resize_pty, kill_pty, analyze, get_cells, set_theme,
+            spawn_pty, write_pty, resize_pty, kill_pty, kill_all_ptys, analyze, get_cells, set_theme,
             launch_all, launch_cell, launch_cells, list_dir_files, list_dir_files_recursive,
             read_file_content, open_file, summarize_all_genres, chat_control
         ])

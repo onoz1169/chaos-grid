@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, type JSX } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { CellState, AnalyzeResult } from '../../shared/types'
 import { getCellIds, cellWorkDir } from '../../shared/types'
-import TopBar from './components/TopBar'
+import TopBar, { type CliTool, TOOL_COMMANDS } from './components/TopBar'
 import Grid, { type ViewMode } from './components/Grid'
 import StatusOverlay from './components/StatusOverlay'
 
@@ -30,6 +30,14 @@ export default function App(): JSX.Element {
   const [outputDir, setOutputDir] = useState<string>(
     () => localStorage.getItem('chaos-grid-output-dir') || '~/chaos-grid-output'
   )
+  const [cliTool, setCliTool] = useState<CliTool>(
+    () => (localStorage.getItem('chaos-grid-cli-tool') as CliTool) ?? 'claude'
+  )
+  const [customCmd, setCustomCmd] = useState<string>(
+    () => localStorage.getItem('chaos-grid-custom-cmd') ?? ''
+  )
+
+  const resolvedToolCmd = cliTool === 'custom' ? customCmd : TOOL_COMMANDS[cliTool]
 
   useEffect(() => {
     invoke<CellState[]>('get_cells').then((arr) => {
@@ -80,11 +88,25 @@ export default function App(): JSX.Element {
     return () => clearInterval(interval)
   }, [autoTimer, handleAnalyze])
 
+  const handleCliToolChange = useCallback((tool: CliTool) => {
+    setCliTool(tool)
+    localStorage.setItem('chaos-grid-cli-tool', tool)
+  }, [])
+
+  const handleCustomCmdChange = useCallback((cmd: string) => {
+    setCustomCmd(cmd)
+    localStorage.setItem('chaos-grid-custom-cmd', cmd)
+  }, [])
+
+  const handleResetAll = useCallback(async () => {
+    await invoke('kill_all_ptys')
+  }, [])
+
   const handleLaunchAll = useCallback(async () => {
     const cellIds = getCellIds(gridRows, gridCols)
     const workDirs = cellIds.map((id) => cellWorkDir(id, cellStates[id], outputDir, gridCols))
-    await invoke('launch_cells', { cellIds, workDirs })
-  }, [gridRows, gridCols, outputDir, cellStates])
+    await invoke('launch_cells', { cellIds, workDirs, toolCmd: resolvedToolCmd })
+  }, [gridRows, gridCols, outputDir, cellStates, resolvedToolCmd])
 
   const handleThemeChange = useCallback((id: string, theme: string) => {
     invoke('set_theme', { cellId: id, theme })
@@ -106,6 +128,7 @@ export default function App(): JSX.Element {
         onAutoTimerChange={setAutoTimer}
         onAnalyze={handleAnalyze}
         onLaunchAll={handleLaunchAll}
+        onResetAll={handleResetAll}
         viewMode={viewMode}
         onViewModeChange={(mode) => { setViewMode(mode); localStorage.setItem('chaos-grid-view', mode) }}
         language={language}
@@ -115,6 +138,10 @@ export default function App(): JSX.Element {
         onGridChange={handleGridChange}
         outputDir={outputDir}
         onOutputDirChange={handleOutputDirChange}
+        cliTool={cliTool}
+        onCliToolChange={handleCliToolChange}
+        customCmd={customCmd}
+        onCustomCmdChange={handleCustomCmdChange}
       />
       <Grid
         cellStates={cellStates}
@@ -126,6 +153,7 @@ export default function App(): JSX.Element {
         gridRows={gridRows}
         gridCols={gridCols}
         outputDir={outputDir}
+        toolCmd={resolvedToolCmd}
       />
       {showStatus && analyzeResult && (
         <StatusOverlay

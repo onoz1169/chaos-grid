@@ -2,6 +2,12 @@ import type { JSX } from 'react'
 import type { ViewMode } from './Grid'
 
 type AutoTimer = 'off' | '1' | '3' | '5' | '10'
+export type CliTool = 'claude' | 'codex' | 'custom'
+
+export const TOOL_COMMANDS: Record<Exclude<CliTool, 'custom'>, string> = {
+  claude: 'claude --dangerously-skip-permissions',
+  codex: 'codex',
+}
 
 export const LANGUAGES = [
   { code: 'English',    label: 'EN' },
@@ -21,6 +27,7 @@ interface TopBarProps {
   onAutoTimerChange: (value: AutoTimer) => void
   onAnalyze: () => void
   onLaunchAll: () => void
+  onResetAll: () => void
   viewMode: ViewMode
   onViewModeChange: (mode: ViewMode) => void
   language: string
@@ -30,6 +37,10 @@ interface TopBarProps {
   onGridChange: (rows: number, cols: number) => void
   outputDir: string
   onOutputDirChange: (dir: string) => void
+  cliTool: CliTool
+  onCliToolChange: (tool: CliTool) => void
+  customCmd: string
+  onCustomCmdChange: (cmd: string) => void
 }
 
 const MODE_LABELS: { key: ViewMode; label: string; title: string }[] = [
@@ -45,6 +56,7 @@ export default function TopBar({
   onAutoTimerChange,
   onAnalyze,
   onLaunchAll,
+  onResetAll,
   viewMode,
   onViewModeChange,
   language,
@@ -54,6 +66,10 @@ export default function TopBar({
   onGridChange,
   outputDir,
   onOutputDirChange,
+  cliTool,
+  onCliToolChange,
+  customCmd,
+  onCustomCmdChange,
 }: TopBarProps): JSX.Element {
   return (
     <div className="top-bar">
@@ -83,6 +99,37 @@ export default function TopBar({
       <button className="btn btn-green" onClick={onLaunchAll}>
         &#9889; LAUNCH ALL
       </button>
+      <button className="btn" onClick={onResetAll} title="Kill all terminal sessions">
+        &#8635; RESET ALL
+      </button>
+
+      {/* CLI tool selector */}
+      <select
+        value={cliTool}
+        onChange={(e) => onCliToolChange(e.target.value as CliTool)}
+        title="CLI tool to launch"
+        style={{ width: 88 }}
+      >
+        <option value="claude">Claude</option>
+        <option value="codex">Codex</option>
+        <option value="custom">Custom</option>
+      </select>
+      {cliTool === 'custom' && (
+        <input
+          type="text"
+          value={customCmd}
+          onChange={(e) => onCustomCmdChange(e.target.value)}
+          placeholder="command..."
+          title="Custom launch command"
+          style={{
+            background: '#1a1a1a', border: '1px solid #333', color: '#ccc',
+            fontFamily: 'monospace', fontSize: 10, padding: '2px 6px',
+            outline: 'none', width: 160, borderRadius: 3,
+          }}
+          onFocus={(e) => (e.currentTarget.style.borderColor = '#555')}
+          onBlur={(e) => (e.currentTarget.style.borderColor = '#333')}
+        />
+      )}
 
       {viewMode === 'grid' && (
         <button className="btn" onClick={onAnalyze} disabled={analyzing}>
