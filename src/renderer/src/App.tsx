@@ -15,7 +15,9 @@ export default function App(): JSX.Element {
   const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [autoTimer, setAutoTimer] = useState<AutoTimer>('off')
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    () => (localStorage.getItem('chaos-grid-view') as ViewMode) ?? 'grid'
+  )
   const [language, setLanguage] = useState<string>(
     () => localStorage.getItem('chaos-grid-language') ?? 'English'
   )
@@ -105,7 +107,7 @@ export default function App(): JSX.Element {
         onAnalyze={handleAnalyze}
         onLaunchAll={handleLaunchAll}
         viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        onViewModeChange={(mode) => { setViewMode(mode); localStorage.setItem('chaos-grid-view', mode) }}
         language={language}
         onLanguageChange={handleLanguageChange}
         gridRows={gridRows}

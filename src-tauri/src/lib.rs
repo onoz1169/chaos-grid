@@ -575,6 +575,104 @@ async fn read_file_content(path: String) -> Result<String, String> {
     std::fs::read_to_string(&expanded).map_err(|e| e.to_string())
 }
 
+#[derive(serde::Deserialize)]
+struct ChatMessage {
+    role: String,
+    content: String,
+}
+
+#[tauri::command]
+async fn chat_control(
+    messages: Vec<ChatMessage>,
+    genres: Vec<GenreInput>,
+    language: String,
+) -> Result<String, String> {
+    let api_key = std::env::var("GEMINI_API_KEY")
+        .map_err(|_| "GEMINI_API_KEY not set".to_string())?;
+
+    // Collect file context for each genre
+    fn collect_files_brief(dir_path: &str) -> Vec<(String, String)> {
+        let mut files = Vec::new();
+        fn walk(root: &std::path::Path, dir: &std::path::Path, out: &mut Vec<(String, String)>) {
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                for entry in entries.filter_map(|e| e.ok()) {
+                    let name = entry.file_name();
+                    if name.to_string_lossy().starts_with('.') { continue; }
+                    let path = entry.path();
+                    if let Ok(meta) = entry.metadata() {
+                        if meta.is_dir() { walk(root, &path, out); }
+                        else {
+                            let rel = path.strip_prefix(root).unwrap_or(&path).to_string_lossy().to_string();
+                            let snippet = std::fs::read_to_string(&path).unwrap_or_default();
+                            let mut end = snippet.len().min(600);
+                            while !snippet.is_char_boundary(end) { end -= 1; }
+                            out.push((rel, snippet[..end].to_string()));
+                        }
+                    }
+                }
+            }
+        }
+        let root = std::path::Path::new(dir_path);
+        if root.exists() { walk(root, root, &mut files); }
+        files.sort_by_key(|f| f.0.clone());
+        files
+    }
+
+    let context = genres.iter().map(|g| {
+        let expanded = expand_tilde(&g.dir);
+        let files = collect_files_brief(&expanded);
+        if files.is_empty() {
+            return format!("[{}]: no files yet", g.name);
+        }
+        let items = files.iter().take(3).map(|(name, snippet)| {
+            format!("  - {}\n{}", name, snippet.lines().take(8).collect::<Vec<_>>().join("\n"))
+        }).collect::<Vec<_>>().join("\n");
+        format!("[{}]: {} file(s)\n{}", g.name, files.len(), items)
+    }).collect::<Vec<_>>().join("\n\n");
+
+    let system_text = format!(
+        "You are a strategic advisor embedded in Chaos Grid, a multi-agent productivity tool.\n\
+        Work streams: Stimulus (research/input) → Will (planning) → Supply (deliverables).\n\
+        Your role: help the user understand current progress, identify bottlenecks, and decide next actions.\n\
+        Be concise and specific. No filler. Respond in: {}\n\n\
+        Current project state:\n{}",
+        language, context
+    );
+
+    // Build Gemini contents: inject system context as first exchange
+    let mut contents: Vec<serde_json::Value> = vec![
+        serde_json::json!({"role": "user", "parts": [{"text": system_text}]}),
+        serde_json::json!({"role": "model", "parts": [{"text": "了解しました。プロジェクトの状況を把握しました。何でも聞いてください。"}]}),
+    ];
+    for msg in &messages {
+        let role = if msg.role == "user" { "user" } else { "model" };
+        contents.push(serde_json::json!({"role": role, "parts": [{"text": msg.content}]}));
+    }
+
+    let url = format!(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={}",
+        api_key
+    );
+    let body = serde_json::json!({
+        "contents": contents,
+        "generationConfig": { "maxOutputTokens": 600 }
+    });
+
+    let client = reqwest::Client::new();
+    let resp = client.post(&url).json(&body).send().await.map_err(|e| e.to_string())?;
+    let resp_json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+
+    let text = resp_json
+        .pointer("/candidates/0/content/parts/0/text")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+
+    if text.is_empty() { return Err("empty response".to_string()); }
+    Ok(text)
+}
+
 pub fn run() {
     dotenvy::dotenv().ok();
 
@@ -588,7 +686,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             spawn_pty, write_pty, resize_pty, kill_pty, analyze, get_cells, set_theme,
-            launch_all, launch_cell, launch_cells, list_dir_files, list_dir_files_recursive, read_file_content, open_file, summarize_all_genres
+            launch_all, launch_cell, launch_cells, list_dir_files, list_dir_files_recursive,
+            read_file_content, open_file, summarize_all_genres, chat_control
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

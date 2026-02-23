@@ -2,11 +2,9 @@ import type { JSX } from 'react'
 import type { CellState } from '../../../shared/types'
 import { getCellIds, getColLabels, getCellRole, roleColor, cellWorkDir } from '../../../shared/types'
 import Cell from './Cell'
-import SynthesisPanel from './SynthesisPanel'
-import OutputView from './OutputView'
-import FilesView from './FilesView'
+import ControlView from './OutputView'
 
-export type ViewMode = 'grid' | 'command' | 'output' | 'files'
+export type ViewMode = 'grid' | 'control'
 
 interface GridProps {
   cellStates: Record<string, CellState>
@@ -65,27 +63,15 @@ function GridInner({ cellStates, onThemeChange, onActivity, compact, gridRows, g
   )
 }
 
-export default function Grid({ cellStates, cellActivity, viewMode, onThemeChange, onActivity, language, gridRows, gridCols, outputDir }: GridProps): JSX.Element {
-  if (viewMode === 'command') {
-    return (
-      <div className="command-layout">
-        <div className="command-terminals">
-          <GridInner cellStates={cellStates} onThemeChange={onThemeChange} onActivity={onActivity} compact gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} />
-        </div>
-        <SynthesisPanel cellStates={cellStates} cellActivity={cellActivity} language={language} cols={gridCols} />
-      </div>
-    )
-  }
-
-  // Keep GridInner mounted during output/files views to preserve terminal sessions.
+export default function Grid({ cellStates, cellActivity: _cellActivity, viewMode, onThemeChange, onActivity, language: _language, gridRows, gridCols, outputDir }: GridProps): JSX.Element {
+  // Keep GridInner mounted during control view to preserve terminal sessions.
   // Use display:none instead of unmounting to prevent spawn_pty from resetting the shell.
   return (
     <>
       <div style={{ display: viewMode === 'grid' ? undefined : 'none' }}>
         <GridInner cellStates={cellStates} onThemeChange={onThemeChange} onActivity={onActivity} gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} />
       </div>
-      {viewMode === 'output' && <OutputView cellStates={cellStates} gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} />}
-      {viewMode === 'files' && <FilesView cellStates={cellStates} gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} />}
+      {viewMode === 'control' && <ControlView cellStates={cellStates} gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} />}
     </>
   )
 }

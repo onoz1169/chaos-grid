@@ -34,9 +34,7 @@ interface TopBarProps {
 
 const MODE_LABELS: { key: ViewMode; label: string; title: string }[] = [
   { key: 'grid',    label: '⊞ GRID',    title: 'Equal-size terminal grid' },
-  { key: 'output',  label: '◉ OUTPUT',  title: 'All terminal outputs at a glance' },
-  { key: 'files',   label: '📁 FILES',  title: 'Browse AI output files per cell' },
-  { key: 'command', label: '⌘ COMMAND', title: 'Always-on command panel' },
+  { key: 'control', label: '◎ CONTROL', title: 'Progress, files, and consultation hub' },
 ]
 
 export default function TopBar({
