@@ -7,6 +7,58 @@ use tauri::Manager;
 const MAX_HISTORY: usize = 20;
 const MAX_OUTPUT_CHARS: usize = 5000;
 
+// ─── AI Config ───────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiConfig {
+    pub provider: String,       // "gemini" | "openai" | "anthropic" | "ollama"
+    pub gemini_key: String,
+    pub openai_key: String,
+    pub anthropic_key: String,
+    pub model: Option<String>,  // None = use provider default
+    pub ollama_url: String,
+}
+
+impl Default for AiConfig {
+    fn default() -> Self {
+        // Backward compat: read GEMINI_API_KEY from env if present
+        let gemini_key = std::env::var("GEMINI_API_KEY").unwrap_or_default();
+        AiConfig {
+            provider: "gemini".to_string(),
+            gemini_key,
+            openai_key: String::new(),
+            anthropic_key: String::new(),
+            model: None,
+            ollama_url: "http://localhost:11434".to_string(),
+        }
+    }
+}
+
+fn config_path() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".chaos-grid-config.json")
+}
+
+pub fn load_ai_config() -> AiConfig {
+    let path = config_path();
+    if !path.exists() {
+        return AiConfig::default();
+    }
+    match fs::read_to_string(&path) {
+        Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
+        Err(_) => AiConfig::default(),
+    }
+}
+
+pub fn save_ai_config(config: &AiConfig) -> Result<(), String> {
+    let path = config_path();
+    let json = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisEntry {
     pub timestamp: String,

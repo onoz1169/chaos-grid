@@ -1,7 +1,11 @@
-mod gemini;
+mod ai;
+pub mod files;
 mod pty_manager;
 mod storage;
 
+use crate::ai::{summarize_all_genres, chat_control, suggest_cell_name};
+use crate::files::{list_dir_files, list_dir_files_recursive, read_file_content, open_file, get_git_info, get_all_git_activity, get_git_diff};
+use crate::storage::AiConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Write;
@@ -13,16 +17,6 @@ const DEFAULT_COLS: u16 = 80;
 const DEFAULT_ROWS: u16 = 24;
 const SHELL_READY_DELAY_MS: u64 = 500;
 const DEFAULT_TOOL_CMD: &str = "claude --dangerously-skip-permissions";
-
-// Used for filesystem operations only — not for shell commands (the shell expands ~ itself).
-fn expand_tilde(path: &str) -> String {
-    if let Some(rest) = path.strip_prefix("~/") {
-        if let Some(home) = dirs::home_dir() {
-            return format!("{}/{}", home.display(), rest);
-        }
-    }
-    path.to_string()
-}
 
 fn make_launch_command(work_dir: Option<&str>, tool_cmd: &str) -> String {
     let cmd = if tool_cmd.trim().is_empty() { DEFAULT_TOOL_CMD } else { tool_cmd };
@@ -226,10 +220,12 @@ async fn kill_all_ptys(
 #[tauri::command]
 async fn analyze(
     app: tauri::AppHandle,
+    ai_config: tauri::State<'_, Mutex<AiConfig>>,
     cell_states: tauri::State<'_, CellStateMap>,
     language: Option<String>,
     cols: Option<u32>,
 ) -> Result<AnalyzeResult, String> {
+    let config = ai_config.lock().unwrap().clone();
     let cells: Vec<CellState> = {
         let states = cell_states.0.lock().map_err(|e| e.to_string())?;
         states.values().cloned().collect()
@@ -238,13 +234,29 @@ async fn analyze(
     let lang = language.as_deref().unwrap_or("English");
     let cols_count = cols.unwrap_or(3) as usize;
     let history = storage::load_analysis_history(&app);
-    let result = gemini::analyze_cells(&cells, &history, lang, cols_count).await?;
+    let result = ai::analyze_cells(&config, &cells, &history, lang, cols_count).await?;
 
-    // Save analysis to history
     let themes: HashMap<String, String> = cells.iter().map(|c| (c.id.clone(), c.theme.clone())).collect();
     storage::save_analysis(&app, &result, themes);
 
     Ok(result)
+}
+
+#[tauri::command]
+async fn get_ai_config(
+    ai_config: tauri::State<'_, Mutex<AiConfig>>,
+) -> Result<AiConfig, String> {
+    Ok(ai_config.lock().unwrap().clone())
+}
+
+#[tauri::command]
+async fn set_ai_config(
+    ai_config: tauri::State<'_, Mutex<AiConfig>>,
+    config: AiConfig,
+) -> Result<(), String> {
+    storage::save_ai_config(&config)?;
+    *ai_config.lock().unwrap() = config;
+    Ok(())
 }
 
 #[tauri::command]
@@ -393,333 +405,34 @@ async fn launch_cell(
     spawn_and_launch(&app, &sessions, &cell_states, &cell_id, work_dir.as_deref(), cmd).await
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FileEntry {
-    pub name: String,
-    pub path: String,
-    pub modified_ms: u64,
-    pub size_bytes: u64,
-    pub is_dir: bool,
-}
-
-#[tauri::command]
-async fn list_dir_files(path: String) -> Result<Vec<FileEntry>, String> {
-    use std::time::UNIX_EPOCH;
-    let expanded = expand_tilde(&path);
-    let entries = std::fs::read_dir(&expanded).map_err(|e| format!("{}: {}", expanded, e))?;
-    let mut files: Vec<FileEntry> = entries
-        .filter_map(|e| e.ok())
-        .filter_map(|entry| {
-            let meta = entry.metadata().ok()?;
-            let modified_ms = meta
-                .modified()
-                .ok()?
-                .duration_since(UNIX_EPOCH)
-                .ok()?
-                .as_millis() as u64;
-            Some(FileEntry {
-                name: entry.file_name().to_string_lossy().to_string(),
-                path: entry.path().to_string_lossy().to_string(),
-                modified_ms,
-                size_bytes: meta.len(),
-                is_dir: meta.is_dir(),
-            })
-        })
-        .collect();
-    files.sort_by(|a, b| b.modified_ms.cmp(&a.modified_ms));
-    files.truncate(200);
-    Ok(files)
-}
-
-#[tauri::command]
-async fn list_dir_files_recursive(path: String) -> Result<Vec<FileEntry>, String> {
-    use std::time::UNIX_EPOCH;
-    let expanded = expand_tilde(&path);
-    let root = std::path::Path::new(&expanded);
-    let mut files: Vec<FileEntry> = Vec::new();
-
-    fn walk(root: &std::path::Path, dir: &std::path::Path, files: &mut Vec<FileEntry>) {
-        let entries = match std::fs::read_dir(dir) {
-            Ok(e) => e,
-            Err(_) => return,
-        };
-        for entry in entries.filter_map(|e| e.ok()) {
-            let path = entry.path();
-            // Skip hidden directories (including .git)
-            let name = entry.file_name();
-            let name_str = name.to_string_lossy();
-            if name_str.starts_with('.') {
-                continue;
-            }
-            let meta = match entry.metadata() {
-                Ok(m) => m,
-                Err(_) => continue,
-            };
-            if meta.is_dir() {
-                walk(root, &path, files);
-            } else {
-                let modified_ms = meta
-                    .modified()
-                    .ok()
-                    .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                    .map(|d| d.as_millis() as u64)
-                    .unwrap_or(0);
-                // Use path relative to root as display name
-                let rel = path.strip_prefix(root).unwrap_or(&path);
-                files.push(FileEntry {
-                    name: rel.to_string_lossy().to_string(),
-                    path: path.to_string_lossy().to_string(),
-                    modified_ms,
-                    size_bytes: meta.len(),
-                    is_dir: false,
-                });
-            }
-        }
-    }
-
-    if root.exists() {
-        walk(root, root, &mut files);
-    }
-    files.sort_by(|a, b| b.modified_ms.cmp(&a.modified_ms));
-    files.truncate(500);
-    Ok(files)
-}
-
-#[derive(serde::Deserialize)]
-struct GenreInput {
-    name: String,
-    dir: String,
-}
-
-#[tauri::command]
-async fn summarize_all_genres(
-    genres: Vec<GenreInput>,
-    language: String,
-) -> Result<String, String> {
-    let api_key = std::env::var("GEMINI_API_KEY")
-        .map_err(|_| "GEMINI_API_KEY not set".to_string())?;
-
-    fn collect_files(dir_path: &str) -> Vec<(String, std::path::PathBuf, u64)> {
-        use std::time::UNIX_EPOCH;
-        let mut files = Vec::new();
-        fn walk(root: &std::path::Path, dir: &std::path::Path, out: &mut Vec<(String, std::path::PathBuf, u64)>) {
-            if let Ok(entries) = std::fs::read_dir(dir) {
-                for entry in entries.filter_map(|e| e.ok()) {
-                    let name = entry.file_name();
-                    if name.to_string_lossy().starts_with('.') { continue; }
-                    let path = entry.path();
-                    if let Ok(meta) = entry.metadata() {
-                        if meta.is_dir() {
-                            walk(root, &path, out);
-                        } else {
-                            let modified_ms = meta.modified().ok()
-                                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                                .map(|d| d.as_millis() as u64).unwrap_or(0);
-                            let rel = path.strip_prefix(root).unwrap_or(&path).to_string_lossy().to_string();
-                            out.push((rel, path, modified_ms));
-                        }
-                    }
-                }
-            }
-        }
-        let root = std::path::Path::new(dir_path);
-        if root.exists() { walk(root, root, &mut files); }
-        files.sort_by(|a, b| b.2.cmp(&a.2));
-        files
-    }
-
-    // Build one prompt section per genre
-    let genre_sections: Vec<String> = genres.iter().map(|g| {
-        let expanded = expand_tilde(&g.dir);
-        let files = collect_files(&expanded);
-        if files.is_empty() {
-            return format!("=== {} ===\n(no files)", g.name);
-        }
-        let file_list = files.iter()
-            .map(|(n, _, _)| format!("  - {}", n))
-            .collect::<Vec<_>>().join("\n");
-        // Top 2 files, up to 1200 chars each
-        let snippets = files.iter().take(2)
-            .filter_map(|(name, path, _)| {
-                let content = std::fs::read_to_string(path).ok()?;
-                let mut end = content.len().min(1200);
-                while !content.is_char_boundary(end) { end -= 1; }
-                Some(format!("--- {}\n{}", name, &content[..end]))
-            })
-            .collect::<Vec<_>>().join("\n\n");
-        format!("=== {} ===\nFiles ({} total):\n{}\n\nRecent content:\n{}", g.name, files.len(), file_list, snippets)
-    }).collect();
-
-    let prompt = format!(
-        "You are reviewing AI agent work output across multiple streams (stimulus=research/input, will=planning, supply=deliverables).\n\
-        Write 2-3 concise sentences summarizing the overall progress: what has been accomplished, what is in progress, and what comes next.\n\
-        Be specific and chronological. No filler phrases. Plain text only, no markdown, no bullet points.\n\
-        \n\
-        {}\n\
-        \n\
-        Respond in: {}",
-        genre_sections.join("\n\n"),
-        language
-    );
-
-    let url = format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={}",
-        api_key
-    );
-
-    let body = serde_json::json!({
-        "contents": [{ "parts": [{ "text": prompt }] }],
-        "generationConfig": { "maxOutputTokens": 300 }
-    });
-
-    let client = reqwest::Client::new();
-    let resp = client.post(&url).json(&body).send().await.map_err(|e| e.to_string())?;
-    let resp_json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
-
-    let text = resp_json
-        .pointer("/candidates/0/content/parts/0/text")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .trim()
-        .to_string();
-
-    if text.is_empty() {
-        return Err("empty response from model".to_string());
-    }
-
-    Ok(text)
-}
-
-#[tauri::command]
-async fn open_file(path: String) -> Result<(), String> {
-    let expanded = expand_tilde(&path);
-    open::that(expanded).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn read_file_content(path: String) -> Result<String, String> {
-    let expanded = expand_tilde(&path);
-    let meta = std::fs::metadata(&expanded).map_err(|e| e.to_string())?;
-    if meta.len() > 2_000_000 {
-        return Err("File too large (>2MB)".to_string());
-    }
-    std::fs::read_to_string(&expanded).map_err(|e| e.to_string())
-}
-
-#[derive(serde::Deserialize)]
-struct ChatMessage {
-    role: String,
-    content: String,
-}
-
-#[tauri::command]
-async fn chat_control(
-    messages: Vec<ChatMessage>,
-    genres: Vec<GenreInput>,
-    language: String,
-) -> Result<String, String> {
-    let api_key = std::env::var("GEMINI_API_KEY")
-        .map_err(|_| "GEMINI_API_KEY not set".to_string())?;
-
-    // Collect file context for each genre
-    fn collect_files_brief(dir_path: &str) -> Vec<(String, String)> {
-        let mut files = Vec::new();
-        fn walk(root: &std::path::Path, dir: &std::path::Path, out: &mut Vec<(String, String)>) {
-            if let Ok(entries) = std::fs::read_dir(dir) {
-                for entry in entries.filter_map(|e| e.ok()) {
-                    let name = entry.file_name();
-                    if name.to_string_lossy().starts_with('.') { continue; }
-                    let path = entry.path();
-                    if let Ok(meta) = entry.metadata() {
-                        if meta.is_dir() { walk(root, &path, out); }
-                        else {
-                            let rel = path.strip_prefix(root).unwrap_or(&path).to_string_lossy().to_string();
-                            let snippet = std::fs::read_to_string(&path).unwrap_or_default();
-                            let mut end = snippet.len().min(600);
-                            while !snippet.is_char_boundary(end) { end -= 1; }
-                            out.push((rel, snippet[..end].to_string()));
-                        }
-                    }
-                }
-            }
-        }
-        let root = std::path::Path::new(dir_path);
-        if root.exists() { walk(root, root, &mut files); }
-        files.sort_by_key(|f| f.0.clone());
-        files
-    }
-
-    let context = genres.iter().map(|g| {
-        let expanded = expand_tilde(&g.dir);
-        let files = collect_files_brief(&expanded);
-        if files.is_empty() {
-            return format!("[{}]: no files yet", g.name);
-        }
-        let items = files.iter().take(3).map(|(name, snippet)| {
-            format!("  - {}\n{}", name, snippet.lines().take(8).collect::<Vec<_>>().join("\n"))
-        }).collect::<Vec<_>>().join("\n");
-        format!("[{}]: {} file(s)\n{}", g.name, files.len(), items)
-    }).collect::<Vec<_>>().join("\n\n");
-
-    let system_text = format!(
-        "You are a strategic advisor embedded in Chaos Grid, a multi-agent productivity tool.\n\
-        Work streams: Stimulus (research/input) → Will (planning) → Supply (deliverables).\n\
-        Your role: help the user understand current progress, identify bottlenecks, and decide next actions.\n\
-        Be concise and specific. No filler. Respond in: {}\n\n\
-        Current project state:\n{}",
-        language, context
-    );
-
-    // Build Gemini contents: inject system context as first exchange
-    let mut contents: Vec<serde_json::Value> = vec![
-        serde_json::json!({"role": "user", "parts": [{"text": system_text}]}),
-        serde_json::json!({"role": "model", "parts": [{"text": "了解しました。プロジェクトの状況を把握しました。何でも聞いてください。"}]}),
-    ];
-    for msg in &messages {
-        let role = if msg.role == "user" { "user" } else { "model" };
-        contents.push(serde_json::json!({"role": role, "parts": [{"text": msg.content}]}));
-    }
-
-    let url = format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={}",
-        api_key
-    );
-    let body = serde_json::json!({
-        "contents": contents,
-        "generationConfig": { "maxOutputTokens": 600 }
-    });
-
-    let client = reqwest::Client::new();
-    let resp = client.post(&url).json(&body).send().await.map_err(|e| e.to_string())?;
-    let resp_json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
-
-    let text = resp_json
-        .pointer("/candidates/0/content/parts/0/text")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .trim()
-        .to_string();
-
-    if text.is_empty() { return Err("empty response".to_string()); }
-    Ok(text)
-}
-
 pub fn run() {
+    // Try loading .env from the project directory (dev) or home dir (release bundle)
     dotenvy::dotenv().ok();
+    if let Some(home) = dirs::home_dir() {
+        let env_path = home.join(".chaos-grid.env");
+        if env_path.exists() {
+            dotenvy::from_path(env_path).ok();
+        }
+    }
 
     tauri::Builder::default()
         .setup(|app| {
             let cell_states = init_cell_states(&app.handle());
             let states_arc = Arc::new(Mutex::new(cell_states));
+            let ai_config = storage::load_ai_config();
             app.manage(PtySessions(Mutex::new(HashMap::new())));
             app.manage(CellStateMap(states_arc));
+            app.manage(Mutex::new(ai_config));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            spawn_pty, write_pty, resize_pty, kill_pty, kill_all_ptys, analyze, get_cells, set_theme,
-            launch_all, launch_cell, launch_cells, list_dir_files, list_dir_files_recursive,
-            read_file_content, open_file, summarize_all_genres, chat_control
+            spawn_pty, write_pty, resize_pty, kill_pty, kill_all_ptys,
+            analyze, get_cells, set_theme,
+            launch_all, launch_cell, launch_cells,
+            list_dir_files, list_dir_files_recursive, read_file_content, open_file,
+            get_git_info, get_all_git_activity, get_git_diff,
+            summarize_all_genres, chat_control, suggest_cell_name,
+            get_ai_config, set_ai_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
