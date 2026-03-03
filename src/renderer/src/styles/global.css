@@ -145,10 +145,10 @@ body {
 
 select { background: #111; color: #e0e0e0; border: 1px solid #333; padding: 4px 8px; font-family: inherit; font-size: 12px; }
 
-/* ── Waiting pulse ── */
+/* ── Waiting pulse (border-left color only, not cell opacity) ── */
 .cell-waiting { animation: pulse-border 1s ease-in-out infinite; }
 @keyframes pulse-border {
-  0%   { opacity: 1; }
-  50%  { opacity: 0.4; }
-  100% { opacity: 1; }
+  0%   { border-left-color: #ffcc00; }
+  50%  { border-left-color: #ffcc0033; }
+  100% { border-left-color: #ffcc00; }
 }

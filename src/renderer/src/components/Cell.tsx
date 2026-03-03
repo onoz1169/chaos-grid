@@ -203,7 +203,6 @@ export default function Cell({ cellState, onThemeChange, onActivity, compact = f
       className={`cell${waiting ? ' cell-waiting' : ''}`}
       style={{
         borderLeft: waiting ? '2px solid #ffcc00' : '2px solid #333',
-        animation: waiting ? 'pulse-border 1s ease-in-out infinite' : 'none',
         transition: waiting ? 'none' : 'border-color 1s ease',
       }}
     >
