@@ -1,34 +1,11 @@
-import { useState, useEffect, useRef, type JSX } from 'react'
+import { useEffect, useRef, useCallback, type JSX } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import type { CellState } from '../../../shared/types'
 import CellHeader from './CellHeader'
-
-const AUTO_NAME_OUTPUT_THRESHOLD = 1500 // chars of post-input PTY output before triggering
-
-const WAITING_PATTERNS = [
-  /^\? /m,
-  /Do you want to/i,
-  /Press Enter/i,
-  /\(Y\/n\)/,
-  /\(y\/N\)/,
-  /Continue\?/i,
-  /y\/n/i,
-  /^.*> $/m,
-]
-
-function detectWaiting(buffer: string): boolean {
-  const tail = buffer.slice(-1000)
-  return WAITING_PATTERNS.some((re) => re.test(tail))
-}
-
-function detectPort(buffer: string): string | undefined {
-  const match = buffer.match(/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{4,5})/)
-  return match ? `:${match[1]}` : undefined
-}
+import { usePtyOutput } from '../hooks/usePtyOutput'
 
 interface CellProps {
   cellState: CellState
@@ -44,33 +21,30 @@ export default function Cell({ cellState, onThemeChange, onActivity, compact = f
   const terminalRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const spawnedRef = useRef(false)
-
-  // Auto-naming: ref for use inside event listener closure, state for UI
-  const rawOutputRef = useRef('')
-  const userSubmittedRef = useRef(false) // true after user presses Enter
-  const namingRef = useRef(false)
-  const [naming, setNaming] = useState(false)
   const cellStateRef = useRef(cellState)
-
-  // Waiting detection
-  const outputBufferRef = useRef('')
-  const waitingRef = useRef(false)
-  const [waiting, setWaiting] = useState(false)
-  const [detectedPort, setDetectedPort] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     cellStateRef.current = cellState
   }, [cellState])
 
+  const handlePtyData = useCallback((data: string) => {
+    termRef.current?.write(data)
+  }, [])
+
+  const { waiting, detectedPort, naming, userSubmittedRef, rawOutputRef, resetNaming } = usePtyOutput({
+    cellId: cellState.id,
+    onActivity,
+    onThemeChange,
+    onPtyData: handlePtyData,
+    cellStateRef,
+  })
+
   // Reset when theme is cleared (allows re-naming)
   useEffect(() => {
     if (!cellState.theme) {
-      namingRef.current = false
-      userSubmittedRef.current = false
-      setNaming(false)
-      rawOutputRef.current = ''
+      resetNaming()
     }
-  }, [cellState.theme])
+  }, [cellState.theme, resetNaming])
 
   useEffect(() => {
     if (!terminalRef.current || termRef.current) return
@@ -111,68 +85,6 @@ export default function Cell({ cellState, onThemeChange, onActivity, compact = f
       }
     })
 
-    let mounted = true
-    let unlistenFn: (() => void) | null = null
-
-    listen<{ cellId: string; data: string }>('pty-data', (event) => {
-      if (event.payload.cellId !== cellState.id) return
-      term.write(event.payload.data)
-      onActivity(cellState.id)
-
-      // Waiting detection: maintain rolling buffer of last 1000 chars
-      outputBufferRef.current += event.payload.data
-      if (outputBufferRef.current.length > 2000) {
-        outputBufferRef.current = outputBufferRef.current.slice(-1000)
-      }
-
-      // If new output is substantial (50+ chars), reset waiting state
-      if (event.payload.data.length >= 50) {
-        if (waitingRef.current) {
-          waitingRef.current = false
-          setWaiting(false)
-        }
-      } else {
-        const isWaiting = detectWaiting(outputBufferRef.current)
-        if (isWaiting !== waitingRef.current) {
-          waitingRef.current = isWaiting
-          setWaiting(isWaiting)
-        }
-      }
-
-      // Port detection
-      const port = detectPort(outputBufferRef.current)
-      setDetectedPort(port)
-
-      // Auto-name: accumulate output after first user submit, fire once threshold is crossed
-      if (!namingRef.current && !cellStateRef.current.theme && userSubmittedRef.current) {
-        rawOutputRef.current += event.payload.data
-        if (rawOutputRef.current.length >= AUTO_NAME_OUTPUT_THRESHOLD) {
-          namingRef.current = true
-          setNaming(true)
-          const language = localStorage.getItem('chaos-grid-language') ?? 'Japanese'
-          invoke<string>('suggest_cell_name', {
-            output: rawOutputRef.current,
-            language,
-          }).then((name) => {
-            const trimmed = name.trim()
-            if (trimmed && !cellStateRef.current.theme) {
-              onThemeChange(cellState.id, trimmed)
-            }
-            setNaming(false)
-          }).catch(() => {
-            namingRef.current = false
-            setNaming(false)
-          })
-        }
-      }
-    }).then((fn) => {
-      if (mounted) {
-        unlistenFn = fn
-      } else {
-        fn()
-      }
-    })
-
     const resizeObserver = new ResizeObserver(() => {
       if (!terminalRef.current || terminalRef.current.offsetWidth === 0 || terminalRef.current.offsetHeight === 0) return
       fitAddon.fit()
@@ -181,8 +93,6 @@ export default function Cell({ cellState, onThemeChange, onActivity, compact = f
     resizeObserver.observe(terminalRef.current)
 
     return () => {
-      mounted = false
-      if (unlistenFn) unlistenFn()
       resizeObserver.disconnect()
       term.dispose()
       termRef.current = null
