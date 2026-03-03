@@ -1,41 +1,24 @@
-import { useState, useEffect, useCallback, useRef, type JSX } from 'react'
+import { useState, useEffect, useCallback, type JSX } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import type { CellState, AnalyzeResult } from '../../shared/types'
+import type { CellState } from '../../shared/types'
 import { getCellIds, cellWorkDir } from '../../shared/types'
+import { useLocalStorage } from './hooks/useLocalStorage'
 import TopBar, { type CliTool, TOOL_COMMANDS } from './components/TopBar'
 import Grid, { type ViewMode } from './components/Grid'
-import StatusOverlay from './components/StatusOverlay'
-
-type AutoTimer = 'off' | '1' | '3' | '5' | '10'
 
 export default function App(): JSX.Element {
   const [cellStates, setCellStates] = useState<Record<string, CellState>>({})
   const [cellActivity, setCellActivity] = useState<Record<string, number>>({})
-  const [showStatus, setShowStatus] = useState(false)
-  const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null)
-  const [analyzing, setAnalyzing] = useState(false)
-  const [autoTimer, setAutoTimer] = useState<AutoTimer>('off')
-  const [viewMode, setViewMode] = useState<ViewMode>(
-    () => (localStorage.getItem('chaos-grid-view') as ViewMode) ?? 'grid'
-  )
-  const [language, setLanguage] = useState<string>(
-    () => localStorage.getItem('chaos-grid-language') ?? 'English'
-  )
-  const [gridRows, setGridRows] = useState<number>(
-    () => parseInt(localStorage.getItem('chaos-grid-rows') ?? '3', 10)
-  )
-  const [gridCols, setGridCols] = useState<number>(
-    () => parseInt(localStorage.getItem('chaos-grid-cols') ?? '3', 10)
-  )
-  const [outputDir, setOutputDir] = useState<string>(
-    () => localStorage.getItem('chaos-grid-output-dir') || '~/chaos-grid-output'
-  )
-  const [cliTool, setCliTool] = useState<CliTool>(
-    () => (localStorage.getItem('chaos-grid-cli-tool') as CliTool) ?? 'claude'
-  )
-  const [customCmd, setCustomCmd] = useState<string>(
-    () => localStorage.getItem('chaos-grid-custom-cmd') ?? ''
-  )
+  const [resetKey, setResetKey] = useState(0)
+
+  const [viewMode, setViewMode] = useLocalStorage<ViewMode>('chaos-grid-view', 'grid')
+  const [language, setLanguage] = useLocalStorage('chaos-grid-language', 'Japanese')
+  const [gridRows, setGridRows] = useLocalStorage('chaos-grid-rows', 2, Number)
+  const [gridCols, setGridCols] = useLocalStorage('chaos-grid-cols', 3, Number)
+  const [outputDir, setOutputDir] = useLocalStorage('chaos-grid-output-dir', '~/chaos-grid-output')
+  const [cliTool, setCliTool] = useLocalStorage<CliTool>('chaos-grid-cli-tool', 'claude')
+  const [customCmd, setCustomCmd] = useLocalStorage('chaos-grid-custom-cmd', '')
+  const [hiddenCells, setHiddenCells] = useLocalStorage<string[]>('chaos-grid-hidden-cells', [])
 
   const resolvedToolCmd = cliTool === 'custom' ? customCmd : TOOL_COMMANDS[cliTool]
 
@@ -51,69 +34,50 @@ export default function App(): JSX.Element {
     setCellActivity((prev) => ({ ...prev, [id]: Date.now() }))
   }, [])
 
-  const handleLanguageChange = useCallback((lang: string) => {
-    setLanguage(lang)
-    localStorage.setItem('chaos-grid-language', lang)
-  }, [])
-
   const handleGridChange = useCallback((rows: number, cols: number) => {
     setGridRows(rows)
     setGridCols(cols)
-    localStorage.setItem('chaos-grid-rows', String(rows))
-    localStorage.setItem('chaos-grid-cols', String(cols))
-  }, [])
+  }, [setGridRows, setGridCols])
 
-  const handleOutputDirChange = useCallback((dir: string) => {
-    setOutputDir(dir)
-    localStorage.setItem('chaos-grid-output-dir', dir)
-  }, [])
-
-  const handleAnalyze = useCallback(async () => {
-    setAnalyzing(true)
-    try {
-      const result = await invoke<AnalyzeResult>('analyze', { language, cols: gridCols })
-      setAnalyzeResult(result)
-      setShowStatus(true)
-    } finally {
-      setAnalyzing(false)
-    }
-  }, [language, gridCols])
-
-  const autoTimerRef = useRef(autoTimer)
-  autoTimerRef.current = autoTimer
-  useEffect(() => {
-    if (autoTimer === 'off') return
-    const ms = parseInt(autoTimer) * 60 * 1000
-    const interval = setInterval(() => handleAnalyze(), ms)
-    return () => clearInterval(interval)
-  }, [autoTimer, handleAnalyze])
-
-  const handleCliToolChange = useCallback((tool: CliTool) => {
-    setCliTool(tool)
-    localStorage.setItem('chaos-grid-cli-tool', tool)
-  }, [])
-
-  const handleCustomCmdChange = useCallback((cmd: string) => {
-    setCustomCmd(cmd)
-    localStorage.setItem('chaos-grid-custom-cmd', cmd)
-  }, [])
+  const handleHideCell = useCallback((id: string) => {
+    setHiddenCells((prev) => prev.includes(id) ? prev : [...prev, id])
+  }, [setHiddenCells])
 
   const handleResetAll = useCallback(async () => {
     await invoke('kill_all_ptys')
-  }, [])
+    setHiddenCells([])
+    setResetKey(k => k + 1)
+  }, [setHiddenCells])
 
   const handleLaunchAll = useCallback(async () => {
-    const cellIds = getCellIds(gridRows, gridCols)
+    const cellIds = getCellIds(gridRows, gridCols).filter((id) => !hiddenCells.includes(id))
     const workDirs = cellIds.map((id) => cellWorkDir(id, cellStates[id], outputDir, gridCols))
     await invoke('launch_cells', { cellIds, workDirs, toolCmd: resolvedToolCmd })
-  }, [gridRows, gridCols, outputDir, cellStates, resolvedToolCmd])
+  }, [gridRows, gridCols, outputDir, cellStates, resolvedToolCmd, hiddenCells])
+
+  // Keyboard shortcuts: Cmd/Ctrl+Shift+L/R/G/C
+  useEffect(() => {
+    const isMac = navigator.platform.toUpperCase().includes('MAC')
+    const handler = (e: KeyboardEvent) => {
+      const mod = isMac ? e.metaKey : e.ctrlKey
+      if (mod && e.shiftKey) {
+        switch (e.key.toLowerCase()) {
+          case 'l': e.preventDefault(); handleLaunchAll(); break
+          case 'r': e.preventDefault(); handleResetAll(); break
+          case 'g': e.preventDefault(); setViewMode('grid'); break
+          case 'c': e.preventDefault(); setViewMode('control'); break
+        }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [handleLaunchAll, handleResetAll, setViewMode])
 
   const handleThemeChange = useCallback((id: string, theme: string) => {
     invoke('set_theme', { cellId: id, theme })
     setCellStates((prev) => ({ ...prev, [id]: { ...prev[id], theme } }))
   }, [])
 
-  const totalCells = gridRows * gridCols
   const activeCells = Object.values(cellActivity).filter(
     (t) => Date.now() - t < 120_000
   ).length
@@ -122,26 +86,22 @@ export default function App(): JSX.Element {
     <>
       <TopBar
         activeCells={activeCells}
-        totalCells={totalCells}
-        analyzing={analyzing}
-        autoTimer={autoTimer}
-        onAutoTimerChange={setAutoTimer}
-        onAnalyze={handleAnalyze}
+        totalCells={gridRows * gridCols}
         onLaunchAll={handleLaunchAll}
         onResetAll={handleResetAll}
         viewMode={viewMode}
-        onViewModeChange={(mode) => { setViewMode(mode); localStorage.setItem('chaos-grid-view', mode) }}
+        onViewModeChange={setViewMode}
         language={language}
-        onLanguageChange={handleLanguageChange}
+        onLanguageChange={setLanguage}
         gridRows={gridRows}
         gridCols={gridCols}
         onGridChange={handleGridChange}
         outputDir={outputDir}
-        onOutputDirChange={handleOutputDirChange}
+        onOutputDirChange={setOutputDir}
         cliTool={cliTool}
-        onCliToolChange={handleCliToolChange}
+        onCliToolChange={setCliTool}
         customCmd={customCmd}
-        onCustomCmdChange={handleCustomCmdChange}
+        onCustomCmdChange={setCustomCmd}
       />
       <Grid
         cellStates={cellStates}
@@ -154,16 +114,11 @@ export default function App(): JSX.Element {
         gridCols={gridCols}
         outputDir={outputDir}
         toolCmd={resolvedToolCmd}
+        onGridChange={handleGridChange}
+        hiddenCells={hiddenCells}
+        onHideCell={handleHideCell}
+        resetKey={resetKey}
       />
-      {showStatus && analyzeResult && (
-        <StatusOverlay
-          result={analyzeResult}
-          cellStates={cellStates}
-          onClose={() => setShowStatus(false)}
-          gridRows={gridRows}
-          gridCols={gridCols}
-        />
-      )}
     </>
   )
 }
