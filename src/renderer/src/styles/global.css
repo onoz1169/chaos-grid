@@ -64,13 +64,20 @@ body {
 }
 
 /* ── Cell ── */
-.cell { background: #0a0a0a; display: flex; flex-direction: column; overflow: hidden; min-width: 0; min-height: 0; }
+.cell { background: #0a0a0a; display: flex; flex-direction: column; overflow: hidden; min-width: 0; min-height: 0; flex: 1; }
 .cell-header {
   height: 30px; background: #0f0f0f; border-bottom: 1px solid #1e1e1e;
   display: flex; align-items: center; gap: 6px; padding: 0 8px;
   flex-shrink: 0;
 }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.cell-header-wrapper { flex-shrink: 0; }
+.cell-metadata {
+  height: 14px; background: #060606;
+  display: flex; align-items: center; padding: 0 8px;
+  font-size: 9px; color: #444; overflow: hidden;
+  flex-shrink: 0;
+}
 .terminal-container { flex: 1; overflow: hidden; position: relative; min-height: 0; }
 .terminal-container .xterm { height: 100%; }
 
@@ -137,3 +144,11 @@ body {
 .idea-card { background: #0d1a0d; border: 1px solid #00ff88; padding: 14px; margin-bottom: 8px; }
 
 select { background: #111; color: #e0e0e0; border: 1px solid #333; padding: 4px 8px; font-family: inherit; font-size: 12px; }
+
+/* ── Waiting pulse ── */
+.cell-waiting { animation: pulse-border 1s ease-in-out infinite; }
+@keyframes pulse-border {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.4; }
+  100% { opacity: 1; }
+}

@@ -4,9 +4,13 @@ import { getCellRole, ROLE_COLORS } from '../../../shared/types'
 
 interface CellHeaderProps {
   cellState: CellState
+  naming?: boolean
+  waiting?: boolean
+  workDir?: string
+  detectedPort?: string
   onThemeChange: (id: string, theme: string) => void
   onLaunch: () => void
-  onKill: () => void
+  onClose: () => void
 }
 
 const STATUS_COLORS: Record<CellState['status'], string> = {
@@ -15,7 +19,12 @@ const STATUS_COLORS: Record<CellState['status'], string> = {
   thinking: '#ffcc00',
 }
 
-export default function CellHeader({ cellState, onThemeChange, onLaunch, onKill }: CellHeaderProps): JSX.Element {
+function shortenPath(p: string): string {
+  const home = p.replace(/^\/Users\/[^/]+/, '~')
+  return home.length > 30 ? '...' + home.slice(-27) : home
+}
+
+export default function CellHeader({ cellState, naming = false, waiting = false, workDir, detectedPort, onThemeChange, onLaunch, onClose }: CellHeaderProps): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(cellState.theme)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -29,6 +38,11 @@ export default function CellHeader({ cellState, onThemeChange, onLaunch, onKill 
     }
   }, [editing])
 
+  // Sync draft when theme is set externally (e.g. auto-named)
+  useEffect(() => {
+    if (!editing) setDraft(cellState.theme)
+  }, [cellState.theme, editing])
+
   const commitEdit = (): void => {
     setEditing(false)
     if (draft.trim() && draft !== cellState.theme) {
@@ -38,9 +52,17 @@ export default function CellHeader({ cellState, onThemeChange, onLaunch, onKill 
     }
   }
 
+  const displayName = naming && !cellState.theme ? '...' : (cellState.theme || '—')
+  const nameColor = naming && !cellState.theme
+    ? '#555'
+    : cellState.theme ? roleColor : '#444'
+
+  const hasMetadata = workDir || detectedPort
+
   return (
-    <div className="cell-header" style={{ borderBottom: `1px solid ${roleColor}22` }}>
-      <span className="status-dot" style={{ background: STATUS_COLORS[cellState.status] }} />
+    <div className="cell-header-wrapper">
+    <div className="cell-header" style={{ borderBottom: hasMetadata ? 'none' : `1px solid ${roleColor}22` }}>
+      <span className="status-dot" style={{ background: waiting ? '#ffcc00' : STATUS_COLORS[cellState.status] }} />
 
       {editing ? (
         <input
@@ -60,15 +82,37 @@ export default function CellHeader({ cellState, onThemeChange, onLaunch, onKill 
         />
       ) : (
         <span
-          onDoubleClick={() => { setDraft(cellState.theme); setEditing(true) }}
-          style={{ fontSize: 11, color: '#aaa', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}
+          onClick={() => { setDraft(cellState.theme); setEditing(true) }}
+          style={{ fontSize: 13, fontWeight: 600, color: nameColor, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'text', minWidth: 40 }}
+          title={naming && !cellState.theme ? 'Generating name...' : 'Click to name this cell'}
         >
-          {cellState.theme}
+          {displayName}
         </span>
       )}
 
-      <button className="btn-icon" onClick={onLaunch} title="Launch claude">▶</button>
-      <button className="btn-icon" onClick={onKill} title="Kill">✕</button>
+      <button
+        className="btn-icon"
+        onClick={onLaunch}
+        title="Launch"
+        style={{ color: `${roleColor}cc`, fontSize: 12 }}
+        onMouseEnter={e => { e.currentTarget.style.color = roleColor }}
+        onMouseLeave={e => { e.currentTarget.style.color = `${roleColor}cc` }}
+      >▶</button>
+      <button
+        className="btn-icon"
+        onClick={onClose}
+        title="Close terminal"
+        style={{ color: '#666', fontSize: 12 }}
+        onMouseEnter={e => { e.currentTarget.style.color = '#ff4466' }}
+        onMouseLeave={e => { e.currentTarget.style.color = '#666' }}
+      >✕</button>
+    </div>
+    {hasMetadata && (
+      <div className="cell-metadata" style={{ borderBottom: `1px solid ${roleColor}22` }}>
+        {workDir && <span>{shortenPath(workDir)}</span>}
+        {detectedPort && <span style={{ marginLeft: workDir ? 6 : 0 }}>{detectedPort}</span>}
+      </div>
+    )}
     </div>
   )
 }
