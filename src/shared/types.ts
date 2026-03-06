@@ -1,3 +1,12 @@
+export interface GridPreset {
+  name: string
+  gridRows: number
+  gridCols: number
+  outputDir: string
+  cliTool: string
+  customCmd: string
+}
+
 export interface CellState {
   id: string
   theme: string
@@ -48,9 +57,9 @@ export const CELL_IDS = getCellIds(3, 3)
 export const COL_LABELS = getColLabels(3)
 
 export const ROLE_COLORS: Record<string, string> = {
-  Stimulus: '#3366aa',
+  Stimulus: '#55bbff',
   Will: '#00ff88',
-  Supply: '#cc3344',
+  Supply: '#ff4466',
 }
 export function roleColor(role: string): string {
   return ROLE_COLORS[role] ?? '#888'
@@ -64,6 +73,6 @@ export function cellWorkDir(
 ): string {
   const theme = cellState?.theme
   const role = getCellRole(cellId, gridCols).toLowerCase()
-  const folderName = theme || role
-  return `${outputDir.replace(/\/+$/, '')}/${folderName}`
+  const base = outputDir.replace(/\/+$/, '')
+  return theme ? `${base}/${role}/${theme}` : `${base}/${role}`
 }
