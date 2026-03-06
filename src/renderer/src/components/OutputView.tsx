@@ -2,445 +2,15 @@ import { useState, useEffect, useCallback, useMemo, useRef, type JSX } from 'rea
 import { invoke } from '@tauri-apps/api/core'
 import type { CellState } from '../../../shared/types'
 import { getCellIds, getCellRole, roleColor, cellWorkDir } from '../../../shared/types'
-import { fileExt, extColor, timeAgo, formatSize } from '../utils/files'
+import type { FileEntry, GenreInfo, GitInfo, ActivityEntry } from '../utils/output-types'
+import AgentStatusBar from './AgentStatusBar'
+import GenreSelector from './GenreSelector'
+import { FileListPanel, FilePreview } from './FilesTab'
+import GitPanel from './GitPanel'
+import DashboardView from './DashboardView'
+import TaskQueue from './TaskQueue'
 
-interface FileEntry {
-  name: string
-  path: string
-  modifiedMs: number
-  sizeBytes: number
-  isDir: boolean
-}
-
-interface GenreInfo {
-  name: string
-  dir: string
-  color: string
-}
-
-// ---- Summary bar ----
-
-interface SummaryBarProps {
-  genres: GenreInfo[]
-  allFiles: Record<string, FileEntry[]>
-  summary: string
-  summarizing: boolean
-  loading: boolean
-  selected: string | null
-  onSelect: (name: string) => void
-  onRefresh: () => void
-}
-
-function SummaryBar({ genres, allFiles, summary, summarizing, loading, selected, onSelect, onRefresh }: SummaryBarProps): JSX.Element {
-  return (
-    <div style={{
-      flexShrink: 0,
-      borderBottom: '1px solid #1a1a1a',
-      background: '#0a0a0a',
-    }}>
-      {/* Unified LLM summary */}
-      <div style={{
-        padding: '10px 14px',
-        borderBottom: '1px solid #141414',
-        display: 'flex', alignItems: 'flex-start', gap: 10,
-        minHeight: 44,
-      }}>
-        <div style={{ flex: 1 }}>
-          {summarizing ? (
-            <span style={{ fontSize: 13, color: '#888' }}>Summarizing...</span>
-          ) : summary ? (
-            <span style={{ fontSize: 13, color: '#ccc', lineHeight: 1.6 }}>{summary}</span>
-          ) : (
-            <span style={{ fontSize: 14, color: '#888' }}>No output yet</span>
-          )}
-        </div>
-        <button
-          onClick={onRefresh}
-          style={{
-            background: 'none', border: 'none', color: '#666', cursor: 'pointer',
-            fontSize: 14, padding: '0 2px', flexShrink: 0,
-            opacity: loading || summarizing ? 0.3 : 1,
-          }}
-          title="Refresh"
-        >
-          ⟳
-        </button>
-      </div>
-
-      {/* Pipeline: genre cards with flow arrows */}
-      <div style={{ display: 'flex', gap: 0, overflowX: 'auto', alignItems: 'stretch' }}>
-        {genres.flatMap((g, idx) => {
-          const files = allFiles[g.name] ?? []
-          const recent = files.slice(0, 3)
-          const lastModified = files[0]?.modifiedMs
-          const active = selected === g.name
-          const totalSize = files.reduce((s, f) => s + f.sizeBytes, 0)
-          const maxFiles = Math.max(...genres.map((gg) => (allFiles[gg.name] ?? []).length), 1)
-          const barPct = files.length > 0 ? Math.max(8, Math.round((files.length / maxFiles) * 100)) : 0
-
-          const isWill = g.name.toLowerCase() === 'will'
-          const card = (
-            <div
-              key={g.name}
-              onClick={() => onSelect(g.name)}
-              style={{
-                flex: 1, minWidth: 160,
-                padding: '8px 12px',
-                borderRight: idx < genres.length - 1 ? '1px solid #141414' : 'none',
-                borderBottom: `2px solid ${active ? g.color : isWill ? '#00ff8833' : 'transparent'}`,
-                cursor: 'pointer',
-                background: active ? (isWill ? '#071a0e' : '#111') : (isWill ? '#040d06' : 'transparent'),
-              }}
-              onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = isWill ? '#071a0e' : '#0d0d0d' }}
-              onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = isWill ? '#040d06' : 'transparent' }}
-            >
-              {/* Genre header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <span style={{ fontSize: 15, fontWeight: 700, color: g.color, letterSpacing: 1 }}>
-                  {g.name.toUpperCase()}
-                </span>
-                <span style={{ fontSize: 10, color: '#999' }}>
-                  {files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''}` : 'no files'}
-                </span>
-                {totalSize > 0 && (
-                  <span style={{ fontSize: 9, color: '#999' }}>{formatSize(totalSize)}</span>
-                )}
-                {lastModified && (
-                  <span style={{ fontSize: 9, color: '#999', marginLeft: 'auto' }}>{timeAgo(lastModified)}</span>
-                )}
-              </div>
-
-              {/* Pipeline bar */}
-              <div style={{ height: isWill ? 5 : 3, background: '#1e1e1e', borderRadius: 2, marginBottom: 5, overflow: 'hidden' }}>
-                {barPct > 0 && (
-                  <div style={{ width: `${barPct}%`, height: '100%', background: g.color, borderRadius: 2, opacity: isWill ? 1 : 0.6, transition: 'width 0.4s' }} />
-                )}
-              </div>
-
-              {/* Recent files */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {recent.map((f) => {
-                  const ext = fileExt(f.name)
-                  return (
-                    <div key={f.path} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ fontSize: 8, color: extColor(ext), fontWeight: 700, width: 20, textAlign: 'right', flexShrink: 0 }}>
-                        {ext || '—'}
-                      </span>
-                      <span style={{ fontSize: 12, color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {f.name}
-                      </span>
-                    </div>
-                  )
-                })}
-                {files.length > 3 && (
-                  <span style={{ fontSize: 9, color: '#888' }}>+{files.length - 3} more</span>
-                )}
-              </div>
-            </div>
-          )
-
-          if (idx < genres.length - 1) {
-            const arrow = (
-              <div key={`${g.name}-arrow`} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#3a3a3a', fontSize: 14, padding: '0 2px', flexShrink: 0,
-                userSelect: 'none',
-              }}>
-                →
-              </div>
-            )
-            return [card, arrow]
-          }
-          return [card]
-        })}
-      </div>
-    </div>
-  )
-}
-
-// ---- File list panel ----
-
-interface FileListPanelProps {
-  files: FileEntry[]
-  loading: boolean
-  selectedFile: string | null
-  selectedGenre: GenreInfo | undefined
-  onSelect: (path: string) => void
-}
-
-function FileListPanel({ files, loading, selectedFile, selectedGenre, onSelect }: FileListPanelProps): JSX.Element {
-  return (
-    <div style={{
-      width: 220, flexShrink: 0,
-      borderRight: '1px solid #1a1a1a',
-      display: 'flex', flexDirection: 'column', overflow: 'hidden',
-    }}>
-      <div style={{
-        padding: '8px 10px', fontSize: 11, color: '#aaa', letterSpacing: 1,
-        borderBottom: '1px solid #1a1a1a',
-        display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-      }}>
-        <span>FILES</span>
-        {files.length > 0 && <span style={{ color: '#888' }}>{files.length}</span>}
-      </div>
-
-      {selectedGenre && (
-        <div style={{
-          padding: '3px 10px', fontSize: 9, color: '#999', fontFamily: 'monospace',
-          borderBottom: '1px solid #111',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0,
-        }}>
-          {selectedGenre.dir}
-        </div>
-      )}
-
-      <div style={{ flex: 1, overflow: 'auto' }}>
-        {loading ? (
-          <div style={{ padding: '10px', fontSize: 11, color: '#777' }}>Loading...</div>
-        ) : files.length === 0 ? (
-          <div style={{ padding: '10px', fontSize: 11, color: '#777' }}>No files</div>
-        ) : files.map((f) => {
-          const ext = fileExt(f.name)
-          const active = selectedFile === f.path
-          return (
-            <div
-              key={f.path}
-              onClick={() => onSelect(f.path)}
-              style={{
-                padding: '7px 10px', cursor: 'pointer',
-                background: active ? '#1a1a1a' : 'transparent',
-                borderBottom: '1px solid #111',
-                borderLeft: `2px solid ${active ? (selectedGenre?.color ?? '#444') : 'transparent'}`,
-              }}
-              onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = '#141414' }}
-              onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent' }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
-                <span style={{ fontSize: 9, color: extColor(ext), fontWeight: 700, width: 22, textAlign: 'right', flexShrink: 0 }}>
-                  {ext || '—'}
-                </span>
-                <span style={{ fontSize: 13, color: active ? '#fff' : '#ddd', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {f.name}
-                </span>
-              </div>
-              <div style={{ display: 'flex', gap: 8, paddingLeft: 27 }}>
-                <span style={{ fontSize: 9, color: '#999' }}>{formatSize(f.sizeBytes)}</span>
-                <span style={{ fontSize: 9, color: '#999' }}>{timeAgo(f.modifiedMs)}</span>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-// ---- Preview panel ----
-
-interface PreviewPanelProps {
-  selectedFile: string | null
-  fileContent: string | null
-  fileError: string | null
-  loading: boolean
-  rightMode: 'preview' | 'chat'
-  onRightModeChange: (m: 'preview' | 'chat') => void
-  genres: GenreInfo[]
-  language: string
-}
-
-function PreviewPanel({ selectedFile, fileContent, fileError, loading, rightMode, onRightModeChange, genres, language }: PreviewPanelProps): JSX.Element {
-  const fileName = selectedFile ? selectedFile.split('/').pop() ?? selectedFile : null
-  const ext = fileName ? fileExt(fileName) : ''
-
-  const tabStyle = (active: boolean) => ({
-    background: 'none', border: 'none', cursor: 'pointer',
-    fontSize: 9, padding: '0 8px', letterSpacing: 1,
-    color: active ? '#ccc' : '#777',
-    borderBottom: `1px solid ${active ? '#666' : 'transparent'}`,
-  })
-
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-      <div style={{
-        padding: '0 14px', height: 30, borderBottom: '1px solid #1a1a1a',
-        display: 'flex', alignItems: 'center', gap: 8,
-        flexShrink: 0, color: '#888',
-      }}>
-        <button style={tabStyle(rightMode === 'preview')} onClick={() => onRightModeChange('preview')}>PREVIEW</button>
-        <button style={tabStyle(rightMode === 'chat')} onClick={() => onRightModeChange('chat')}>CHAT</button>
-        {rightMode === 'preview' && fileName && (
-          <>
-            <span style={{ color: extColor(ext), fontWeight: 700, fontSize: 9 }}>{ext || 'FILE'}</span>
-            <span style={{ color: '#aaa', fontSize: 11 }}>{fileName}</span>
-            <span style={{ flex: 1 }} />
-            <button
-              onClick={() => invoke('open_file', { path: selectedFile })}
-              style={{
-                background: 'none', border: '1px solid #333', color: '#777', cursor: 'pointer',
-                fontSize: 9, padding: '2px 7px', borderRadius: 3, letterSpacing: 0.5,
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#555'; e.currentTarget.style.color = '#aaa' }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#777' }}
-            >
-              OPEN
-            </button>
-          </>
-        )}
-      </div>
-
-      {rightMode === 'preview' ? (
-        <div style={{
-          flex: 1, overflow: 'auto', padding: '14px 18px',
-          fontFamily: 'JetBrains Mono, Menlo, Monaco, monospace',
-          fontSize: 12, lineHeight: 1.75,
-          color: fileError ? '#ff4444' : '#ccc',
-          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-        }}>
-          {!selectedFile ? (
-            <span style={{ color: '#777' }}>← Select a file to preview</span>
-          ) : loading ? (
-            <span style={{ color: '#555' }}>Loading...</span>
-          ) : fileError ? (
-            fileError
-          ) : (
-            fileContent ?? ''
-          )}
-        </div>
-      ) : (
-        <ChatPanel genres={genres} language={language} />
-      )}
-    </div>
-  )
-}
-
-// ---- Chat panel ----
-
-interface ChatMessage { role: 'user' | 'assistant'; content: string }
-
-interface ChatPanelProps {
-  genres: GenreInfo[]
-  language: string
-}
-
-function ChatPanel({ genres, language }: ChatPanelProps): JSX.Element {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const bottomRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  const send = useCallback(async () => {
-    const text = input.trim()
-    if (!text || loading) return
-    const next: ChatMessage[] = [...messages, { role: 'user', content: text }]
-    setMessages(next)
-    setInput('')
-    setLoading(true)
-    try {
-      const reply = await invoke<string>('chat_control', {
-        messages: next.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', content: m.content })),
-        genres: genres.map((g) => ({ name: g.name, dir: g.dir })),
-        language,
-      })
-      setMessages([...next, { role: 'assistant', content: reply }])
-    } catch (e) {
-      setMessages([...next, { role: 'assistant', content: `Error: ${String(e)}` }])
-    } finally {
-      setLoading(false)
-    }
-  }, [input, loading, messages, genres, language])
-
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-      {/* Messages */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {messages.length === 0 && (
-          <div style={{ color: '#888', fontSize: 11, marginTop: 8, lineHeight: 1.7 }}>
-            現在のプロジェクト状況について何でも聞いてください。<br />
-            例：「どこが詰まっていますか？」「次に何をすべきですか？」
-          </div>
-        )}
-        {messages.map((m, i) => (
-          <div key={i} style={{
-            alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-            maxWidth: '85%',
-          }}>
-            <div style={{
-              padding: '8px 12px',
-              borderRadius: m.role === 'user' ? '8px 8px 2px 8px' : '8px 8px 8px 2px',
-              background: m.role === 'user' ? '#1a2a1a' : '#1a1a1a',
-              border: `1px solid ${m.role === 'user' ? '#2a4a2a' : '#242424'}`,
-              fontSize: 12, color: '#ccc', lineHeight: 1.6,
-              whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-            }}>
-              {m.content}
-            </div>
-          </div>
-        ))}
-        {loading && (
-          <div style={{ alignSelf: 'flex-start' }}>
-            <div style={{
-              padding: '8px 12px', borderRadius: '8px 8px 8px 2px',
-              background: '#1a1a1a', border: '1px solid #242424',
-              fontSize: 12, color: '#777',
-            }}>
-              ...
-            </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
-
-      {/* Input */}
-      <div style={{
-        padding: '8px 12px', borderTop: '1px solid #1a1a1a',
-        display: 'flex', gap: 8, flexShrink: 0,
-      }}>
-        {messages.length > 0 && (
-          <button
-            onClick={() => setMessages([])}
-            style={{
-              background: 'none', border: 'none', color: '#777', cursor: 'pointer',
-              fontSize: 11, padding: '0 4px', flexShrink: 0,
-            }}
-            title="Clear conversation"
-          >
-            ✕
-          </button>
-        )}
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-          placeholder="質問する..."
-          style={{
-            flex: 1, background: '#111', border: '1px solid #222', borderRadius: 4,
-            color: '#ccc', fontSize: 12, padding: '6px 10px', outline: 'none',
-          }}
-          onFocus={(e) => { e.currentTarget.style.borderColor = '#333' }}
-          onBlur={(e) => { e.currentTarget.style.borderColor = '#222' }}
-        />
-        <button
-          onClick={send}
-          disabled={!input.trim() || loading}
-          style={{
-            background: '#1a2a1a', border: '1px solid #2a4a2a', color: '#4a9a4a',
-            cursor: input.trim() && !loading ? 'pointer' : 'default',
-            fontSize: 11, padding: '6px 12px', borderRadius: 4, flexShrink: 0,
-            opacity: input.trim() && !loading ? 1 : 0.4,
-          }}
-        >
-          送信
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ---- Main OutputView ----
+type RightMode = 'dashboard' | 'files' | 'git' | 'tasks'
 
 interface OutputViewProps {
   cellStates: Record<string, CellState>
@@ -449,9 +19,19 @@ interface OutputViewProps {
   outputDir: string
 }
 
+const tabStyle = (active: boolean) => ({
+  background: 'none', border: 'none', cursor: 'pointer',
+  fontSize: 10, padding: '0 12px', letterSpacing: 1,
+  color: active ? '#ccc' : '#555',
+  borderBottom: `2px solid ${active ? '#444' : 'transparent'}`,
+  height: '100%',
+})
+
 export default function OutputView({ cellStates, gridRows, gridCols, outputDir }: OutputViewProps): JSX.Element {
   const [allFiles, setAllFiles] = useState<Record<string, FileEntry[]>>({})
   const [loadingGenres, setLoadingGenres] = useState<Set<string>>(new Set())
+  const [activityEntries, setActivityEntries] = useState<ActivityEntry[]>([])
+  const [loadingActivity, setLoadingActivity] = useState(false)
   const [summary, setSummary] = useState<string>('')
   const [summarizing, setSummarizing] = useState(false)
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
@@ -459,7 +39,9 @@ export default function OutputView({ cellStates, gridRows, gridCols, outputDir }
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
-  const [rightMode, setRightMode] = useState<'preview' | 'chat'>('preview')
+  const [rightMode, setRightMode] = useState<RightMode>('dashboard')
+  const [gitInfo, setGitInfo] = useState<GitInfo | null>(null)
+  const [gitLoading, setGitLoading] = useState(false)
 
   const language = localStorage.getItem('chaos-grid-language') ?? 'Japanese'
 
@@ -467,11 +49,12 @@ export default function OutputView({ cellStates, gridRows, gridCols, outputDir }
     const seen = new Set<string>()
     const result: GenreInfo[] = []
     getCellIds(gridRows, gridCols).forEach((id) => {
+      const role = getCellRole(id, gridCols)
       const dir = cellWorkDir(id, cellStates[id], outputDir, gridCols)
       const name = dir.split('/').pop() ?? id
       if (!seen.has(name)) {
         seen.add(name)
-        result.push({ name, dir, color: roleColor(getCellRole(id, gridCols)) })
+        result.push({ name, dir, color: roleColor(role), role, cellId: id })
       }
     })
     return result
@@ -483,79 +66,99 @@ export default function OutputView({ cellStates, gridRows, gridCols, outputDir }
       genres: genreList.map((g) => ({ name: g.name, dir: g.dir })),
       language,
     })
-      .then((result) => {
-        setSummary(result)
-        setSummarizing(false)
-      })
-      .catch((e) => {
-        console.error('summarize_all_genres failed:', e)
-        setSummarizing(false)
-      })
+      .then((r) => { setSummary(r); setSummarizing(false) })
+      .catch(() => setSummarizing(false))
   }, [language])
 
-  // Load files for all genres in parallel, then summarize all at once
-  const loadAll = useCallback((genreList: GenreInfo[]) => {
+  const loadFiles = useCallback((genreList: GenreInfo[]) => {
     setLoadingGenres(new Set(genreList.map((g) => g.name)))
-    setSummary('')
-    let remaining = genreList.length
-    const nextAllFiles: Record<string, FileEntry[]> = {}
-
     genreList.forEach((g) => {
       invoke<FileEntry[]>('list_dir_files_recursive', { path: g.dir })
-        .then((list) => {
-          nextAllFiles[g.name] = list.sort((a, b) => b.modifiedMs - a.modifiedMs)
-        })
-        .catch(() => { nextAllFiles[g.name] = [] })
-        .finally(() => {
-          setAllFiles((prev) => ({ ...prev, [g.name]: nextAllFiles[g.name] }))
-          setLoadingGenres((prev) => { const next = new Set(prev); next.delete(g.name); return next })
-          remaining--
-          if (remaining === 0) {
-            const hasAny = genreList.some((g) => (nextAllFiles[g.name] ?? []).length > 0)
-            if (hasAny) summarizeAll(genreList)
-          }
-        })
+        .then((list) => setAllFiles((prev) => ({ ...prev, [g.name]: list.sort((a, b) => b.modifiedMs - a.modifiedMs) })))
+        .catch(() => setAllFiles((prev) => ({ ...prev, [g.name]: [] })))
+        .finally(() => setLoadingGenres((prev) => { const n = new Set(prev); n.delete(g.name); return n }))
     })
-  }, [summarizeAll])
+  }, [])
 
-  const genreSignatureRef = useRef<string>('')
+  const loadActivity = useCallback((genreList: GenreInfo[]) => {
+    if (genreList.length === 0) return
+    setLoadingActivity(true)
+    invoke<ActivityEntry[]>('get_all_git_activity', {
+      dirs: genreList.map((g) => g.dir),
+      genres: genreList.map((g) => g.name),
+    })
+      .then((list) => { setActivityEntries(list); setLoadingActivity(false) })
+      .catch(() => setLoadingActivity(false))
+  }, [])
+
+  const loadGitInfo = useCallback((dir: string) => {
+    setGitLoading(true)
+    invoke<GitInfo>('get_git_info', { path: dir })
+      .then((info) => { setGitInfo(info); setGitLoading(false) })
+      .catch(() => { setGitInfo(null); setGitLoading(false) })
+  }, [])
+
+  const genreSigRef = useRef('')
   useEffect(() => {
     if (genres.length === 0) return
     const sig = genres.map((g) => `${g.name}:${g.dir}`).join(',')
-    if (sig === genreSignatureRef.current) return
-    genreSignatureRef.current = sig
-    loadAll(genres)
-  }, [genres, loadAll])
+    if (sig === genreSigRef.current) return
+    genreSigRef.current = sig
+    loadFiles(genres)
+    loadActivity(genres)
+  }, [genres, loadFiles, loadActivity])
 
-  // Auto-refresh files every 30 seconds (without re-summarizing)
+  // Auto-refresh every 30s
   useEffect(() => {
     if (genres.length === 0) return
-    const interval = setInterval(() => {
+    const iv = setInterval(() => {
       genres.forEach((g) => {
         invoke<FileEntry[]>('list_dir_files_recursive', { path: g.dir })
-          .then((list) => {
-            setAllFiles((prev) => ({ ...prev, [g.name]: list.sort((a, b) => b.modifiedMs - a.modifiedMs) }))
-          })
+          .then((list) => setAllFiles((prev) => ({ ...prev, [g.name]: list.sort((a, b) => b.modifiedMs - a.modifiedMs) })))
           .catch(() => {})
       })
+      loadActivity(genres)
     }, 30_000)
-    return () => clearInterval(interval)
-  }, [genres])
+    return () => clearInterval(iv)
+  }, [genres, loadActivity])
 
   // Auto-select first genre
   useEffect(() => {
-    if (genres.length > 0 && selectedGenre === null) {
-      setSelectedGenre(genres[0].name)
-    }
+    if (genres.length > 0 && !selectedGenre) setSelectedGenre(genres[0].name)
   }, [genres, selectedGenre])
 
   // Auto-select first file when genre changes
   useEffect(() => {
     const files = allFiles[selectedGenre ?? ''] ?? []
-    setSelectedFile(files.length > 0 ? files[0].path : null)
+    setSelectedFile(files[0]?.path ?? null)
     setFileContent(null)
     setFileError(null)
   }, [selectedGenre, allFiles])
+
+  // Load git info for selected genre
+  useEffect(() => {
+    const g = genres.find((g) => g.name === selectedGenre)
+    if (g) loadGitInfo(g.dir)
+    else setGitInfo(null)
+  }, [selectedGenre, genres, loadGitInfo])
+
+  // Auto-refresh git every 30s
+  useEffect(() => {
+    const g = genres.find((g) => g.name === selectedGenre)
+    if (!g) return
+    const iv = setInterval(() => loadGitInfo(g.dir), 30_000)
+    return () => clearInterval(iv)
+  }, [selectedGenre, genres, loadGitInfo])
+
+  // Auto-summarize on first load
+  const autoSummarizedRef = useRef(false)
+  useEffect(() => {
+    if (autoSummarizedRef.current || genres.length === 0 || loadingGenres.size > 0) return
+    const total = genres.reduce((s, g) => s + (allFiles[g.name]?.length ?? 0), 0)
+    if (total === 0) return
+    autoSummarizedRef.current = true
+    summarizeAll(genres)
+  }, [allFiles, genres, loadingGenres, summarizeAll])
 
   // Load file content
   useEffect(() => {
@@ -571,47 +174,82 @@ export default function OutputView({ cellStates, gridRows, gridCols, outputDir }
   if (!outputDir.trim()) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333', fontSize: 13 }}>
-        Set an output directory in the toolbar to use this view.
+        Set an output directory in Settings (⚙) to use this view.
       </div>
     )
   }
 
   const selectedGenreInfo = genres.find((g) => g.name === selectedGenre)
   const currentFiles = allFiles[selectedGenre ?? ''] ?? []
-  const isLoading = loadingGenres.size > 0
+  const fileStatuses = gitInfo?.fileStatuses ?? {}
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#0a0a0a' }}>
-      <SummaryBar
-        genres={genres}
-        allFiles={allFiles}
-        summary={summary}
-        summarizing={summarizing}
-        loading={isLoading}
-        selected={selectedGenre}
-        onSelect={setSelectedGenre}
-        onRefresh={() => loadAll(genres)}
-      />
+      <AgentStatusBar cellStates={cellStates} />
 
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <FileListPanel
-          files={currentFiles}
-          loading={loadingGenres.has(selectedGenre ?? '')}
-          selectedFile={selectedFile}
-          selectedGenre={selectedGenreInfo}
-          onSelect={setSelectedFile}
-        />
-        <PreviewPanel
-          selectedFile={selectedFile}
-          fileContent={fileContent}
-          fileError={fileError}
-          loading={loadingContent}
-          rightMode={rightMode}
-          onRightModeChange={setRightMode}
-          genres={genres}
-          language={language}
-        />
+      {/* Tab bar */}
+      <div style={{
+        height: 34, borderBottom: '1px solid #1a1a1a', background: '#080808',
+        display: 'flex', alignItems: 'stretch', flexShrink: 0, paddingLeft: 4,
+      }}>
+        <button style={tabStyle(rightMode === 'dashboard')} onClick={() => setRightMode('dashboard')}>DASHBOARD</button>
+        <button style={tabStyle(rightMode === 'files')} onClick={() => setRightMode('files')}>FILES</button>
+        <button style={tabStyle(rightMode === 'git')} onClick={() => setRightMode('git')}>GIT</button>
+        <button style={tabStyle(rightMode === 'tasks')} onClick={() => setRightMode('tasks')}>TASKS</button>
       </div>
+
+      {/* Content */}
+      {rightMode === 'dashboard' ? (
+        <DashboardView
+          genres={genres}
+          cellStates={cellStates}
+          allFiles={allFiles}
+          activityEntries={activityEntries}
+          loadingActivity={loadingActivity}
+          summary={summary}
+          summarizing={summarizing}
+          onSummarize={() => summarizeAll(genres)}
+          onRefresh={() => { loadFiles(genres); loadActivity(genres) }}
+          onSelectGenre={(name) => { setSelectedGenre(name); setRightMode('files') }}
+          gridCols={gridCols}
+        />
+      ) : rightMode === 'tasks' ? (
+        <TaskQueue
+          cellIds={getCellIds(gridRows, gridCols)}
+          cellStates={cellStates}
+        />
+      ) : (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <GenreSelector genres={genres} selected={selectedGenre} onSelect={setSelectedGenre} />
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+            {rightMode === 'files' ? (
+              <>
+                <FileListPanel
+                  files={currentFiles}
+                  loading={loadingGenres.has(selectedGenre ?? '')}
+                  selectedFile={selectedFile}
+                  selectedGenre={selectedGenreInfo}
+                  fileStatuses={fileStatuses}
+                  onSelect={setSelectedFile}
+                />
+                <FilePreview
+                  selectedFile={selectedFile}
+                  fileContent={fileContent}
+                  fileError={fileError}
+                  loading={loadingContent}
+                />
+              </>
+            ) : (
+              <GitPanel
+                selectedGenre={selectedGenreInfo}
+                gitInfo={gitInfo}
+                loading={gitLoading}
+                onRefresh={() => selectedGenreInfo && loadGitInfo(selectedGenreInfo.dir)}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
