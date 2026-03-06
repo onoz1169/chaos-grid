@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Black background with rounded corners -->
+  <rect width="512" height="512" rx="100" ry="100" fill="#080808"/>
+
+  <!-- 3x3 grid: outer border + inner lines -->
+  <!-- Padding: 80px on each side, grid area: 352x352 -->
+  <!-- Cell size: ~117px -->
+
+  <!-- Outer border -->
+  <rect x="80" y="80" width="352" height="352" fill="none" stroke="#00ff88" stroke-width="10" rx="4"/>
+
+  <!-- Vertical dividers -->
+  <line x1="197" y1="80" x2="197" y2="432" stroke="#00ff88" stroke-width="6"/>
+  <line x1="315" y1="80" x2="315" y2="432" stroke="#00ff88" stroke-width="6"/>
+
+  <!-- Horizontal dividers -->
+  <line x1="80" y1="197" x2="432" y2="197" stroke="#00ff88" stroke-width="6"/>
+  <line x1="80" y1="315" x2="432" y2="315" stroke="#00ff88" stroke-width="6"/>
+</svg>

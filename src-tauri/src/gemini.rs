@@ -3,6 +3,12 @@ use crate::AnalyzeResult;
 use crate::CellState;
 use std::collections::HashMap;
 
+#[derive(serde::Deserialize)]
+pub struct GenreInput {
+    pub name: String,
+    pub dir: String,
+}
+
 fn get_cell_role(cell_id: &str, cols: usize) -> &'static str {
     let index: usize = cell_id
         .strip_prefix("cell-")
@@ -239,4 +245,228 @@ fn extract_json_object(text: &str) -> Option<String> {
     } else {
         None
     }
+}
+
+#[tauri::command]
+pub async fn summarize_all_genres(
+    genres: Vec<GenreInput>,
+    language: String,
+) -> Result<String, String> {
+    let api_key = std::env::var("GEMINI_API_KEY")
+        .map_err(|_| "GEMINI_API_KEY not set".to_string())?;
+
+    // Build one prompt section per genre
+    let genre_sections: Vec<String> = genres.iter().map(|g| {
+        let expanded = crate::files::expand_tilde(&g.dir);
+        let root = std::path::Path::new(&expanded);
+        let files = if root.exists() {
+            let mut v = crate::files::walk_dir(root);
+            v.sort_by(|a, b| b.2.cmp(&a.2));
+            v
+        } else {
+            Vec::new()
+        };
+        if files.is_empty() {
+            return format!("=== {} ===\n(no files)", g.name);
+        }
+        let file_list = files.iter()
+            .map(|(n, _, _)| format!("  - {}", n))
+            .collect::<Vec<_>>().join("\n");
+        // Top 2 files, up to 1200 chars each
+        let snippets = files.iter().take(2)
+            .filter_map(|(name, path, _)| {
+                let content = std::fs::read_to_string(path).ok()?;
+                let mut end = content.len().min(1200);
+                while !content.is_char_boundary(end) { end -= 1; }
+                Some(format!("--- {}\n{}", name, &content[..end]))
+            })
+            .collect::<Vec<_>>().join("\n\n");
+        format!("=== {} ===\nFiles ({} total):\n{}\n\nRecent content:\n{}", g.name, files.len(), file_list, snippets)
+    }).collect();
+
+    let prompt = format!(
+        "You are reviewing AI agent work output across multiple streams (stimulus=research/input, will=planning, supply=deliverables).\n\
+        Write 2-3 concise sentences summarizing the overall progress: what has been accomplished, what is in progress, and what comes next.\n\
+        Be specific and chronological. No filler phrases. Plain text only, no markdown, no bullet points.\n\
+        \n\
+        {}\n\
+        \n\
+        Respond in: {}",
+        genre_sections.join("\n\n"),
+        language
+    );
+
+    let url = format!(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={}",
+        api_key
+    );
+
+    let body = serde_json::json!({
+        "contents": [{ "parts": [{ "text": prompt }] }],
+        "generationConfig": { "maxOutputTokens": 300 }
+    });
+
+    let client = reqwest::Client::new();
+    let resp = client.post(&url).json(&body).send().await.map_err(|e| e.to_string())?;
+    let resp_json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+
+    let text = resp_json
+        .pointer("/candidates/0/content/parts/0/text")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+
+    if text.is_empty() {
+        return Err("empty response from model".to_string());
+    }
+
+    Ok(text)
+}
+
+fn strip_ansi(s: &str) -> String {
+    let mut result = String::new();
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                for nc in chars.by_ref() {
+                    if nc.is_ascii_alphabetic() { break; }
+                }
+            } else {
+                chars.next();
+            }
+        } else if c != '\r' {
+            result.push(c);
+        }
+    }
+    result
+}
+
+#[tauri::command]
+pub async fn suggest_cell_name(output: String, language: String) -> Result<String, String> {
+    let api_key = std::env::var("GEMINI_API_KEY")
+        .map_err(|_| "GEMINI_API_KEY not set".to_string())?;
+
+    let clean = strip_ansi(&output);
+    let mut start = clean.len().saturating_sub(1500);
+    while !clean.is_char_boundary(start) { start += 1; }
+    let snippet = &clean[start..];
+
+    let prompt = format!(
+        "Based on this terminal session output, suggest a concise name (2-4 words, max 20 characters).\n\
+        The name should describe what task or project is being worked on.\n\
+        Return ONLY the name, nothing else. No quotes, no punctuation at the end.\n\
+        Respond in: {}\n\n\
+        Terminal output:\n{}",
+        language, snippet
+    );
+
+    let url = format!(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={}",
+        api_key
+    );
+    let body = serde_json::json!({
+        "contents": [{ "parts": [{ "text": prompt }] }],
+        "generationConfig": { "maxOutputTokens": 20 }
+    });
+
+    let client = reqwest::Client::new();
+    let resp = client.post(&url).json(&body).send().await.map_err(|e| e.to_string())?;
+    let resp_json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+
+    let text = resp_json
+        .pointer("/candidates/0/content/parts/0/text")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+
+    if text.is_empty() { return Err("empty response".to_string()); }
+    Ok(text)
+}
+
+#[derive(serde::Deserialize)]
+pub struct ChatMessage {
+    role: String,
+    content: String,
+}
+
+#[tauri::command]
+pub async fn chat_control(
+    messages: Vec<ChatMessage>,
+    genres: Vec<GenreInput>,
+    language: String,
+) -> Result<String, String> {
+    let api_key = std::env::var("GEMINI_API_KEY")
+        .map_err(|_| "GEMINI_API_KEY not set".to_string())?;
+
+    // Collect file context for each genre
+    let context = genres.iter().map(|g| {
+        let expanded = crate::files::expand_tilde(&g.dir);
+        let root = std::path::Path::new(&expanded);
+        let files: Vec<(String, String)> = if root.exists() {
+            let walked = crate::files::walk_dir(root);
+            let mut v: Vec<(String, String)> = walked.into_iter().map(|(rel, path, _)| {
+                let snippet = std::fs::read_to_string(&path).unwrap_or_default();
+                let mut end = snippet.len().min(600);
+                while !snippet.is_char_boundary(end) { end -= 1; }
+                (rel, snippet[..end].to_string())
+            }).collect();
+            v.sort_by_key(|f| f.0.clone());
+            v
+        } else {
+            Vec::new()
+        };
+        if files.is_empty() {
+            return format!("[{}]: no files yet", g.name);
+        }
+        let items = files.iter().take(3).map(|(name, snippet)| {
+            format!("  - {}\n{}", name, snippet.lines().take(8).collect::<Vec<_>>().join("\n"))
+        }).collect::<Vec<_>>().join("\n");
+        format!("[{}]: {} file(s)\n{}", g.name, files.len(), items)
+    }).collect::<Vec<_>>().join("\n\n");
+
+    let system_text = format!(
+        "You are a strategic advisor embedded in Chaos Grid, a multi-agent productivity tool.\n\
+        Work streams: Stimulus (research/input) → Will (planning) → Supply (deliverables).\n\
+        Your role: help the user understand current progress, identify bottlenecks, and decide next actions.\n\
+        Be concise and specific. No filler. Respond in: {}\n\n\
+        Current project state:\n{}",
+        language, context
+    );
+
+    // Build Gemini contents: inject system context as first exchange
+    let mut contents: Vec<serde_json::Value> = vec![
+        serde_json::json!({"role": "user", "parts": [{"text": system_text}]}),
+        serde_json::json!({"role": "model", "parts": [{"text": "了解しました。プロジェクトの状況を把握しました。何でも聞いてください。"}]}),
+    ];
+    for msg in &messages {
+        let role = if msg.role == "user" { "user" } else { "model" };
+        contents.push(serde_json::json!({"role": role, "parts": [{"text": msg.content}]}));
+    }
+
+    let url = format!(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={}",
+        api_key
+    );
+    let body = serde_json::json!({
+        "contents": contents,
+        "generationConfig": { "maxOutputTokens": 600 }
+    });
+
+    let client = reqwest::Client::new();
+    let resp = client.post(&url).json(&body).send().await.map_err(|e| e.to_string())?;
+    let resp_json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+
+    let text = resp_json
+        .pointer("/candidates/0/content/parts/0/text")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+
+    if text.is_empty() { return Err("empty response".to_string()); }
+    Ok(text)
 }
