@@ -23,8 +23,6 @@ export default function App(): JSX.Element {
   const [hiddenCells, setHiddenCells] = useLocalStorage<string[]>('chaos-grid-hidden-cells', [])
   const [presets, setPresets] = useLocalStorage<GridPreset[]>('chaos-grid-presets', [])
   const [focusedCellId, setFocusedCellId] = useState<string | null>(null)
-  const [worktreeEnabled, setWorktreeEnabled] = useLocalStorage<boolean>('chaos-grid-worktree-enabled', false)
-  const [worktreeRepoPath, setWorktreeRepoPath] = useLocalStorage('chaos-grid-worktree-repo', '')
 
   const resolvedToolCmd = cliTool === 'custom' ? customCmd : TOOL_COMMANDS[cliTool]
 
@@ -93,24 +91,8 @@ export default function App(): JSX.Element {
   const handleLaunchAll = useCallback(async () => {
     const cellIds = getCellIds(gridRows, gridCols).filter((id) => !hiddenCells.includes(id))
     const workDirs = cellIds.map((id) => cellWorkDir(id, cellStates[id], outputDir, gridCols))
-
-    // Worktree setup if enabled
-    if (worktreeEnabled && worktreeRepoPath) {
-      for (let i = 0; i < cellIds.length; i++) {
-        const id = cellIds[i]
-        const wDir = workDirs[i]
-        const theme = cellStates[id]?.theme ?? ''
-        const branchName = `chaos/${id}${theme ? '-' + theme.replace(/\s+/g, '-').toLowerCase() : ''}`
-        try {
-          await invoke('setup_worktree', { repoPath: worktreeRepoPath, worktreePath: wDir, branchName })
-        } catch (e) {
-          console.error(`Worktree setup failed for ${id}:`, e)
-        }
-      }
-    }
-
     await invoke('launch_cells', { cellIds, workDirs, toolCmd: resolvedToolCmd })
-  }, [gridRows, gridCols, outputDir, cellStates, resolvedToolCmd, hiddenCells, worktreeEnabled, worktreeRepoPath])
+  }, [gridRows, gridCols, outputDir, cellStates, resolvedToolCmd, hiddenCells])
 
   // Keyboard shortcuts: Cmd/Ctrl+Shift+L/R/G/C
   useEffect(() => {
@@ -199,23 +181,16 @@ export default function App(): JSX.Element {
         onLoadPreset={handleLoadPreset}
         onDeletePreset={handleDeletePreset}
         onBroadcast={handleBroadcast}
-        worktreeEnabled={worktreeEnabled}
-        onWorktreeEnabledChange={setWorktreeEnabled}
-        worktreeRepoPath={worktreeRepoPath}
-        onWorktreeRepoPathChange={setWorktreeRepoPath}
       />
       <Grid
         cellStates={cellStates}
-        cellActivity={cellActivity}
         viewMode={viewMode}
         onThemeChange={handleThemeChange}
         onActivity={handleActivity}
-        language={language}
         gridRows={gridRows}
         gridCols={gridCols}
         outputDir={outputDir}
         toolCmd={resolvedToolCmd}
-        onGridChange={handleGridChange}
         hiddenCells={hiddenCells}
         onHideCell={handleHideCell}
         resetKey={resetKey}

@@ -29,16 +29,13 @@ function startDrag(
 
 interface GridProps {
   cellStates: Record<string, CellState>
-  cellActivity: Record<string, number>
   viewMode: ViewMode
   onThemeChange: (id: string, theme: string) => void
   onActivity: (id: string) => void
-  language: string
   gridRows: number
   gridCols: number
   outputDir: string
   toolCmd: string
-  onGridChange: (rows: number, cols: number) => void
   hiddenCells: string[]
   onHideCell: (id: string) => void
   resetKey: number
@@ -269,8 +266,8 @@ function GridInner({
 }
 
 export default function Grid({
-  cellStates, cellActivity: _cellActivity, viewMode, onThemeChange, onActivity,
-  language: _language, gridRows, gridCols, outputDir, toolCmd, onGridChange: _onGridChange,
+  cellStates, viewMode, onThemeChange, onActivity,
+  gridRows, gridCols, outputDir, toolCmd,
   hiddenCells, onHideCell, resetKey, focusedCellId,
 }: GridProps): JSX.Element {
   return (

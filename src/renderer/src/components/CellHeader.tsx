@@ -11,7 +11,6 @@ interface CellHeaderProps {
   cpuPct?: number
   sessionCost?: number
   autoRestart?: boolean
-  worktreeBranch?: string
   onThemeChange: (id: string, theme: string) => void
   onLaunch: () => void
   onClose: () => void
@@ -29,7 +28,7 @@ function shortenPath(p: string): string {
   return home.length > 30 ? '...' + home.slice(-27) : home
 }
 
-export default function CellHeader({ cellState, naming = false, waiting = false, workDir, detectedPort, cpuPct = 0, sessionCost, autoRestart, worktreeBranch, onThemeChange, onLaunch, onClose, onToggleAutoRestart }: CellHeaderProps): JSX.Element {
+export default function CellHeader({ cellState, naming = false, waiting = false, workDir, detectedPort, cpuPct = 0, sessionCost, autoRestart, onThemeChange, onLaunch, onClose, onToggleAutoRestart }: CellHeaderProps): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(cellState.theme)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -63,7 +62,7 @@ export default function CellHeader({ cellState, naming = false, waiting = false,
     : cellState.theme ? roleColor : '#444'
 
   const cpuColor = cpuPct >= 10 ? '#00ff88' : cpuPct >= 2 ? '#ffcc00' : '#444'
-  const hasMetadata = workDir || detectedPort || cpuPct >= 2 || (sessionCost ?? 0) > 0 || !!worktreeBranch
+  const hasMetadata = workDir || detectedPort || cpuPct >= 2 || (sessionCost ?? 0) > 0
 
   return (
     <div className="cell-header-wrapper">
@@ -125,11 +124,6 @@ export default function CellHeader({ cellState, naming = false, waiting = false,
       <div className="cell-metadata" style={{ borderBottom: `1px solid ${roleColor}22` }}>
         {workDir && <span>{shortenPath(workDir)}</span>}
         {detectedPort && <span style={{ marginLeft: workDir ? 6 : 0 }}>{detectedPort}</span>}
-        {worktreeBranch && (
-          <span style={{ color: '#55bbff', fontSize: 9, fontFamily: 'monospace' }}>
-            &#9015; {worktreeBranch}
-          </span>
-        )}
         {cpuPct >= 2 && (
           <span style={{ marginLeft: 'auto', color: cpuColor, fontVariantNumeric: 'tabular-nums' }}>
             CPU {Math.round(cpuPct)}%

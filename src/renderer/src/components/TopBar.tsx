@@ -44,10 +44,6 @@ interface TopBarProps {
   onLoadPreset: (name: string) => void
   onDeletePreset: (name: string) => void
   onBroadcast: (data: string) => void
-  worktreeEnabled: boolean
-  onWorktreeEnabledChange: (v: boolean) => void
-  worktreeRepoPath: string
-  onWorktreeRepoPathChange: (v: string) => void
 }
 
 export default function TopBar({
@@ -60,8 +56,6 @@ export default function TopBar({
   customCmd, onCustomCmdChange,
   presets, onSavePreset, onLoadPreset, onDeletePreset,
   onBroadcast,
-  worktreeEnabled, onWorktreeEnabledChange,
-  worktreeRepoPath, onWorktreeRepoPathChange,
 }: TopBarProps): JSX.Element {
   const [showSettings, setShowSettings] = useState(false)
   const settingsRef = useRef<HTMLDivElement>(null)
@@ -261,40 +255,6 @@ export default function TopBar({
                 />
               )}
             </label>
-
-            {/* Git Worktree */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 9, color: '#666', flex: 1 }}>GIT WORKTREE</span>
-                <button
-                  onClick={() => onWorktreeEnabledChange(!worktreeEnabled)}
-                  style={{
-                    background: worktreeEnabled ? '#001a0d' : '#1a1a1a',
-                    border: `1px solid ${worktreeEnabled ? '#00ff88' : '#333'}`,
-                    color: worktreeEnabled ? '#00ff88' : '#666',
-                    fontSize: 9, padding: '2px 8px', borderRadius: 3, cursor: 'pointer',
-                  }}
-                >{worktreeEnabled ? 'ON' : 'OFF'}</button>
-              </div>
-              {worktreeEnabled && (
-                <input
-                  type="text"
-                  value={worktreeRepoPath}
-                  onChange={(e) => onWorktreeRepoPathChange(e.target.value)}
-                  placeholder="Main repo path (e.g. ~/myproject)"
-                  style={{
-                    background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#ccc',
-                    fontFamily: 'monospace', fontSize: 11, padding: '5px 8px',
-                    outline: 'none', borderRadius: 3, width: '100%', boxSizing: 'border-box',
-                  }}
-                />
-              )}
-              {worktreeEnabled && (
-                <span style={{ fontSize: 9, color: '#444' }}>
-                  Each cell gets its own branch: chaos/cell-N-theme
-                </span>
-              )}
-            </div>
 
             {/* Grid size */}
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

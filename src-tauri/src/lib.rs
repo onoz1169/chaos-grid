@@ -4,7 +4,7 @@ mod pty_manager;
 mod storage;
 
 use crate::ai::{summarize_all_genres, chat_control, suggest_cell_name};
-use crate::files::{list_dir_files, list_dir_files_recursive, read_file_content, open_file, get_git_info, get_all_git_activity, get_git_diff, setup_worktree, remove_worktree};
+use crate::files::{list_dir_files, list_dir_files_recursive, read_file_content, open_file, get_git_info, get_all_git_activity, get_git_diff};
 use crate::storage::AiConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -499,7 +499,6 @@ pub fn run() {
             summarize_all_genres, chat_control, suggest_cell_name,
             get_ai_config, set_ai_config,
             get_cell_cpu,
-            setup_worktree, remove_worktree,
             save_session_state, load_session_state
         ])
         .run(tauri::generate_context!())
