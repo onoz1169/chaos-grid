@@ -37,7 +37,6 @@ Assign themes to each cell, run Claude Code (or any CLI tool) in all of them sim
 - **Task queue** — pre-queue prompts per cell; auto-send on agent exit
 - **Session restore** — relaunch all cells on next startup from saved session
 - **Grid presets** — save and load grid/tool configurations by name
-- **Git worktrees** — each cell gets its own branch for parallel safe editing
 - **Keyboard navigation** — Cmd+1-9 to focus cells, Cmd+Shift+L/R/G/C for global shortcuts
 - **Drag-to-resize** — column and cell height resize by dragging
 - **CONTROL mode** — AI analyzes all terminals and diagnoses the Stimulus → Will → Supply flow
@@ -91,7 +90,6 @@ All settings are accessible via the **⚙** button in the top bar.
 | Presets | Save/load named grid configurations |
 | Output Directory | Working directory root for each cell |
 | CLI Tool | `claude`, `codex`, or any custom command |
-| Git Worktree | Auto-create per-cell branches from a shared repo |
 | Grid Size | Rows (1-6) × Columns (1-5) |
 | AI Language | Language for auto-naming and analysis output |
 
