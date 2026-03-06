@@ -8,6 +8,8 @@ interface CellHeaderProps {
   waiting?: boolean
   workDir?: string
   detectedPort?: string
+  cpuPct?: number
+  sessionCost?: number
   onThemeChange: (id: string, theme: string) => void
   onLaunch: () => void
   onClose: () => void
@@ -24,7 +26,7 @@ function shortenPath(p: string): string {
   return home.length > 30 ? '...' + home.slice(-27) : home
 }
 
-export default function CellHeader({ cellState, naming = false, waiting = false, workDir, detectedPort, onThemeChange, onLaunch, onClose }: CellHeaderProps): JSX.Element {
+export default function CellHeader({ cellState, naming = false, waiting = false, workDir, detectedPort, cpuPct = 0, sessionCost, onThemeChange, onLaunch, onClose }: CellHeaderProps): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(cellState.theme)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -57,7 +59,8 @@ export default function CellHeader({ cellState, naming = false, waiting = false,
     ? '#555'
     : cellState.theme ? roleColor : '#444'
 
-  const hasMetadata = workDir || detectedPort
+  const cpuColor = cpuPct >= 10 ? '#00ff88' : cpuPct >= 2 ? '#ffcc00' : '#444'
+  const hasMetadata = workDir || detectedPort || cpuPct >= 2 || (sessionCost ?? 0) > 0
 
   return (
     <div className="cell-header-wrapper">
@@ -111,6 +114,21 @@ export default function CellHeader({ cellState, naming = false, waiting = false,
       <div className="cell-metadata" style={{ borderBottom: `1px solid ${roleColor}22` }}>
         {workDir && <span>{shortenPath(workDir)}</span>}
         {detectedPort && <span style={{ marginLeft: workDir ? 6 : 0 }}>{detectedPort}</span>}
+        {cpuPct >= 2 && (
+          <span style={{ marginLeft: 'auto', color: cpuColor, fontVariantNumeric: 'tabular-nums' }}>
+            CPU {Math.round(cpuPct)}%
+          </span>
+        )}
+        {(sessionCost ?? 0) > 0 && (
+          <span style={{
+            marginLeft: 'auto',
+            color: sessionCost! >= 1.0 ? '#ff4466' : sessionCost! >= 0.1 ? '#ffcc00' : '#aaa',
+            fontVariantNumeric: 'tabular-nums',
+            fontSize: 9,
+          }}>
+            ${sessionCost!.toFixed(4)}
+          </span>
+        )}
       </div>
     )}
     </div>

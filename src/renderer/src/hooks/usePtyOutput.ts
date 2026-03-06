@@ -3,6 +3,11 @@ import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import type { MutableRefObject } from 'react'
 
+function parseCost(text: string): number {
+  const match = text.match(/[Cc]ost:\s*\$([0-9]+\.[0-9]+)/)
+  return match ? parseFloat(match[1]) : 0
+}
+
 const AUTO_NAME_OUTPUT_THRESHOLD = 1500
 
 const WAITING_PATTERNS = [
@@ -42,6 +47,7 @@ interface UsePtyOutputResult {
   rawOutputRef: MutableRefObject<string>
   namingRef: MutableRefObject<boolean>
   resetNaming: () => void
+  sessionCost: number
 }
 
 export function usePtyOutput(options: UsePtyOutputOptions): UsePtyOutputResult {
@@ -64,6 +70,9 @@ export function usePtyOutput(options: UsePtyOutputOptions): UsePtyOutputResult {
   const userSubmittedRef = useRef(false)
   const namingRef = useRef(false)
   const [naming, setNaming] = useState(false)
+
+  const sessionCostRef = useRef(0)
+  const [sessionCost, setSessionCost] = useState(0)
 
   const resetNaming = useCallback((): void => {
     namingRef.current = false
@@ -104,6 +113,13 @@ export function usePtyOutput(options: UsePtyOutputOptions): UsePtyOutputResult {
       // Port detection
       const port = detectPort(outputBufferRef.current)
       setDetectedPort(port)
+
+      // Cost tracking: parse Claude Code cost output and accumulate
+      const cost = parseCost(event.payload.data)
+      if (cost > 0) {
+        sessionCostRef.current += cost
+        setSessionCost(sessionCostRef.current)
+      }
 
       // Auto-name: accumulate output after first user submit, fire once threshold is crossed
       if (!namingRef.current && !cellStateRef.current.theme && userSubmittedRef.current) {
@@ -151,5 +167,6 @@ export function usePtyOutput(options: UsePtyOutputOptions): UsePtyOutputResult {
     rawOutputRef,
     namingRef,
     resetNaming,
+    sessionCost,
   }
 }

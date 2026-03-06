@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, type JSX } from 'react'
+import { useState, useEffect, useRef, useCallback, type JSX } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -31,13 +31,25 @@ export default function Cell({ cellState, onThemeChange, onActivity, compact = f
     termRef.current?.write(data)
   }, [])
 
-  const { waiting, detectedPort, naming, userSubmittedRef, rawOutputRef, resetNaming } = usePtyOutput({
+  const { waiting, detectedPort, naming, userSubmittedRef, rawOutputRef, resetNaming, sessionCost } = usePtyOutput({
     cellId: cellState.id,
     onActivity,
     onThemeChange,
     onPtyData: handlePtyData,
     cellStateRef,
   })
+
+  // CPU polling — 2s interval while cell has a live PID
+  const [cpuPct, setCpuPct] = useState(0)
+  useEffect(() => {
+    if (!cellState.pid) { setCpuPct(0); return }
+    const poll = (): void => {
+      invoke<number>('get_cell_cpu', { cellId: cellState.id }).then(setCpuPct).catch(() => {})
+    }
+    poll()
+    const id = setInterval(poll, 2000)
+    return () => clearInterval(id)
+  }, [cellState.id, cellState.pid])
 
   // Reset when theme is cleared (allows re-naming)
   useEffect(() => {
@@ -122,6 +134,8 @@ export default function Cell({ cellState, onThemeChange, onActivity, compact = f
         waiting={waiting}
         workDir={workDir}
         detectedPort={detectedPort}
+        cpuPct={cpuPct}
+        sessionCost={sessionCost}
         onThemeChange={onThemeChange}
         onLaunch={handleLaunch}
         onClose={handleClose}
