@@ -4,7 +4,7 @@ mod pty_manager;
 mod storage;
 
 use crate::ai::{summarize_all_genres, chat_control, suggest_cell_name};
-use crate::files::{list_dir_files, list_dir_files_recursive, read_file_content, open_file, get_git_info, get_all_git_activity, get_git_diff};
+use crate::files::{list_dir_files, list_dir_files_recursive, read_file_content, open_file, get_git_info, get_all_git_activity, get_git_diff, setup_worktree, remove_worktree};
 use crate::storage::AiConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -453,6 +453,22 @@ async fn launch_cell(
     spawn_and_launch(&app, &sessions, &cell_states, &cell_id, work_dir.as_deref(), cmd).await
 }
 
+#[tauri::command]
+async fn save_session_state(
+    app: tauri::AppHandle,
+    entries: Vec<storage::SessionEntry>,
+) -> Result<(), String> {
+    storage::save_session(&app, entries);
+    Ok(())
+}
+
+#[tauri::command]
+async fn load_session_state(
+    app: tauri::AppHandle,
+) -> Result<Option<storage::SavedSession>, String> {
+    Ok(storage::load_session(&app))
+}
+
 pub fn run() {
     // Try loading .env from the project directory (dev) or home dir (release bundle)
     dotenvy::dotenv().ok();
@@ -482,7 +498,9 @@ pub fn run() {
             get_git_info, get_all_git_activity, get_git_diff,
             summarize_all_genres, chat_control, suggest_cell_name,
             get_ai_config, set_ai_config,
-            get_cell_cpu
+            get_cell_cpu,
+            setup_worktree, remove_worktree,
+            save_session_state, load_session_state
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

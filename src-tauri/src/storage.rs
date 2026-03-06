@@ -149,6 +149,43 @@ pub fn save_analysis(
     }
 }
 
+// ─── Session Restore ──────────────────────────────────────────────────────────
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionEntry {
+    pub cell_id: String,
+    pub work_dir: String,
+    pub tool_cmd: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedSession {
+    pub entries: Vec<SessionEntry>,
+    pub saved_at: u64,
+}
+
+pub fn save_session(app: &tauri::AppHandle, entries: Vec<SessionEntry>) {
+    let dir = data_dir(app);
+    ensure_dir(&dir);
+    let path = dir.join("session.json");
+    let session = SavedSession {
+        entries,
+        saved_at: crate::now_millis(),
+    };
+    if let Ok(json) = serde_json::to_string(&session) {
+        let _ = fs::write(path, json);
+    }
+}
+
+pub fn load_session(app: &tauri::AppHandle) -> Option<SavedSession> {
+    let dir = data_dir(app);
+    let path = dir.join("session.json");
+    let content = fs::read_to_string(path).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
 fn chrono_now_iso() -> String {
     // Simple ISO timestamp without chrono dependency
     use std::time::{SystemTime, UNIX_EPOCH};

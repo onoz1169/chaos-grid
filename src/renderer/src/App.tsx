@@ -5,11 +5,13 @@ import { getCellIds, cellWorkDir } from '../../shared/types'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import TopBar, { type CliTool, TOOL_COMMANDS } from './components/TopBar'
 import Grid, { type ViewMode } from './components/Grid'
+import SessionRestoreDialog from './components/SessionRestoreDialog'
 
 export default function App(): JSX.Element {
   const [cellStates, setCellStates] = useState<Record<string, CellState>>({})
   const [cellActivity, setCellActivity] = useState<Record<string, number>>({})
   const [resetKey, setResetKey] = useState(0)
+  const [showRestoreDialog, setShowRestoreDialog] = useState(true)
 
   const [viewMode, setViewMode] = useLocalStorage<ViewMode>('chaos-grid-view', 'grid')
   const [language, setLanguage] = useLocalStorage('chaos-grid-language', 'Japanese')
@@ -21,6 +23,8 @@ export default function App(): JSX.Element {
   const [hiddenCells, setHiddenCells] = useLocalStorage<string[]>('chaos-grid-hidden-cells', [])
   const [presets, setPresets] = useLocalStorage<GridPreset[]>('chaos-grid-presets', [])
   const [focusedCellId, setFocusedCellId] = useState<string | null>(null)
+  const [worktreeEnabled, setWorktreeEnabled] = useLocalStorage<boolean>('chaos-grid-worktree-enabled', false)
+  const [worktreeRepoPath, setWorktreeRepoPath] = useLocalStorage('chaos-grid-worktree-repo', '')
 
   const resolvedToolCmd = cliTool === 'custom' ? customCmd : TOOL_COMMANDS[cliTool]
 
@@ -89,8 +93,24 @@ export default function App(): JSX.Element {
   const handleLaunchAll = useCallback(async () => {
     const cellIds = getCellIds(gridRows, gridCols).filter((id) => !hiddenCells.includes(id))
     const workDirs = cellIds.map((id) => cellWorkDir(id, cellStates[id], outputDir, gridCols))
+
+    // Worktree setup if enabled
+    if (worktreeEnabled && worktreeRepoPath) {
+      for (let i = 0; i < cellIds.length; i++) {
+        const id = cellIds[i]
+        const wDir = workDirs[i]
+        const theme = cellStates[id]?.theme ?? ''
+        const branchName = `chaos/${id}${theme ? '-' + theme.replace(/\s+/g, '-').toLowerCase() : ''}`
+        try {
+          await invoke('setup_worktree', { repoPath: worktreeRepoPath, worktreePath: wDir, branchName })
+        } catch (e) {
+          console.error(`Worktree setup failed for ${id}:`, e)
+        }
+      }
+    }
+
     await invoke('launch_cells', { cellIds, workDirs, toolCmd: resolvedToolCmd })
-  }, [gridRows, gridCols, outputDir, cellStates, resolvedToolCmd, hiddenCells])
+  }, [gridRows, gridCols, outputDir, cellStates, resolvedToolCmd, hiddenCells, worktreeEnabled, worktreeRepoPath])
 
   // Keyboard shortcuts: Cmd/Ctrl+Shift+L/R/G/C
   useEffect(() => {
@@ -119,12 +139,43 @@ export default function App(): JSX.Element {
     setCellStates((prev) => ({ ...prev, [id]: { ...prev[id], theme } }))
   }, [])
 
+  // Save session whenever active cells change
+  useEffect(() => {
+    const entries = Object.values(cellStates)
+      .filter((c) => c.pid)
+      .map((c) => ({
+        cellId: c.id,
+        workDir: cellWorkDir(c.id, c, outputDir, gridCols),
+        toolCmd: resolvedToolCmd,
+      }))
+    if (entries.length > 0) {
+      invoke('save_session_state', { entries }).catch(() => {})
+    }
+  }, [cellStates, outputDir, gridCols, resolvedToolCmd])
+
+  const handleRestoreSession = useCallback(async (entries: Array<{ cellId: string; workDir: string; toolCmd: string }>) => {
+    setShowRestoreDialog(false)
+    for (const entry of entries) {
+      await invoke('launch_cell', {
+        cellId: entry.cellId,
+        workDir: entry.workDir || null,
+        toolCmd: entry.toolCmd || null,
+      })
+    }
+  }, [])
+
   const activeCells = Object.values(cellActivity).filter(
     (t) => Date.now() - t < 120_000
   ).length
 
   return (
     <>
+      {showRestoreDialog && (
+        <SessionRestoreDialog
+          onRestore={handleRestoreSession}
+          onDismiss={() => setShowRestoreDialog(false)}
+        />
+      )}
       <TopBar
         activeCells={activeCells}
         totalCells={gridRows * gridCols}
@@ -148,6 +199,10 @@ export default function App(): JSX.Element {
         onLoadPreset={handleLoadPreset}
         onDeletePreset={handleDeletePreset}
         onBroadcast={handleBroadcast}
+        worktreeEnabled={worktreeEnabled}
+        onWorktreeEnabledChange={setWorktreeEnabled}
+        worktreeRepoPath={worktreeRepoPath}
+        onWorktreeRepoPathChange={setWorktreeRepoPath}
       />
       <Grid
         cellStates={cellStates}
