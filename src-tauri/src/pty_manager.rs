@@ -85,8 +85,7 @@ pub fn spawn(
         let mut buf = [0u8; 4096];
         loop {
             match reader.read(&mut buf) {
-                Ok(0) => break,
-                Ok(n) => {
+                Ok(n) if n > 0 => {
                     let data = String::from_utf8_lossy(&buf[..n]).to_string();
 
                     // Update buffer
@@ -128,7 +127,18 @@ pub fn spawn(
                         );
                     }
                 }
-                Err(_) => break,
+                Ok(0) | Err(_) => {
+                    #[derive(serde::Serialize, Clone)]
+                    struct PtyExitedPayload { #[serde(rename = "cellId")] cell_id: String }
+                    let _ = app.emit("pty-exited", PtyExitedPayload { cell_id: cell_id_clone.clone() });
+                    let mut states = cell_states.lock().unwrap();
+                    if let Some(state) = states.get_mut(&cell_id_for_state) {
+                        state.pid = None;
+                        state.status = "idle".to_string();
+                        state.updated_at = crate::now_millis();
+                    }
+                    break;
+                }
             }
         }
     });
