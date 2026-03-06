@@ -121,18 +121,21 @@ export default function App(): JSX.Element {
     setCellStates((prev) => ({ ...prev, [id]: { ...prev[id], theme } }))
   }, [])
 
-  // Save session whenever active cells change
+  // Save session whenever active cells change (debounced 2s)
   useEffect(() => {
-    const entries = Object.values(cellStates)
-      .filter((c) => c.pid)
-      .map((c) => ({
-        cellId: c.id,
-        workDir: cellWorkDir(c.id, c, outputDir, gridCols),
-        toolCmd: resolvedToolCmd,
-      }))
-    if (entries.length > 0) {
-      invoke('save_session_state', { entries }).catch(() => {})
-    }
+    const timer = setTimeout(() => {
+      const entries = Object.values(cellStates)
+        .filter((c) => c.pid)
+        .map((c) => ({
+          cellId: c.id,
+          workDir: cellWorkDir(c.id, c, outputDir, gridCols),
+          toolCmd: resolvedToolCmd,
+        }))
+      if (entries.length > 0) {
+        invoke('save_session_state', { entries }).catch(() => {})
+      }
+    }, 2000)
+    return () => clearTimeout(timer)
   }, [cellStates, outputDir, gridCols, resolvedToolCmd])
 
   const handleRestoreSession = useCallback(async (entries: Array<{ cellId: string; workDir: string; toolCmd: string }>) => {

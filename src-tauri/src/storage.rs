@@ -98,7 +98,12 @@ pub fn save_cell_output(app: &tauri::AppHandle, cell_id: &str, buffer: &str) {
 
     let mut all = load_cell_outputs(app);
     let truncated = if buffer.len() > MAX_OUTPUT_CHARS {
-        &buffer[buffer.len() - MAX_OUTPUT_CHARS..]
+        let mut start = buffer.len() - MAX_OUTPUT_CHARS;
+        // Advance to next valid UTF-8 char boundary to avoid panic on multibyte chars
+        while !buffer.is_char_boundary(start) {
+            start += 1;
+        }
+        &buffer[start..]
     } else {
         buffer
     };

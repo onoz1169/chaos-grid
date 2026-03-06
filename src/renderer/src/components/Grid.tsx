@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, Fragment, type JSX, createRef } from 'react'
+import { useRef, useEffect, useCallback, Fragment, type JSX } from 'react'
 import type { CellState } from '../../../shared/types'
 import { getCellIds, getColLabels, roleColor, cellWorkDir } from '../../../shared/types'
 import { useLocalStorage } from '../hooks/useLocalStorage'
@@ -63,18 +63,13 @@ function GridInner({
   const colLabels = getColLabels(gridCols)
 
   // Refs for keyboard navigation (focusedCellId)
-  const cellDivRefs = useRef<Record<string, React.RefObject<HTMLDivElement | null>>>({})
-  cellIds.forEach((id) => {
-    if (!cellDivRefs.current[id]) {
-      cellDivRefs.current[id] = createRef<HTMLDivElement | null>()
-    }
-  })
+  const cellDivRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   useEffect(() => {
     if (!focusedCellId) return
-    const ref = cellDivRefs.current[focusedCellId]
-    if (ref?.current) {
-      ref.current.click()
+    const el = cellDivRefs.current.get(focusedCellId)
+    if (el) {
+      el.click()
     }
   }, [focusedCellId])
 
@@ -211,7 +206,10 @@ function GridInner({
                     <Fragment key={id}>
                       {/* Cell wrapper with flex-grow for height resize */}
                       <div
-                        ref={cellDivRefs.current[id] as React.RefObject<HTMLDivElement>}
+                        ref={(el: HTMLDivElement | null) => {
+                          if (el) cellDivRefs.current.set(id, el)
+                          else cellDivRefs.current.delete(id)
+                        }}
                         style={{
                         flexGrow: cellSizes[id] ?? 1,
                         flexShrink: 1,

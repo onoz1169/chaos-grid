@@ -16,19 +16,6 @@ export interface CellState {
   updatedAt: number
 }
 
-export interface AnalyzeResult {
-  summaries: Record<string, string>
-  ideas: string[]
-  flow?: FlowAnalysis
-}
-
-export interface FlowAnalysis {
-  stimuli_to_will: string   // 刺激が意志に変換されているか
-  will_to_supply: string    // 意志が供給に落ちているか
-  stuck: string             // どこで詰まっているか
-  next: string              // 次にすべきこと
-}
-
 export type CellRole = 'Stimulus' | 'Will' | 'Supply'
 
 export function getCellRole(cellId: string, cols: number = 3): CellRole {
@@ -51,10 +38,6 @@ export function getColLabels(cols: number): string[] {
     return `Supply${cols > 3 ? ` ${i + 1}` : ''}`
   })
 }
-
-// kept for backward compat
-export const CELL_IDS = getCellIds(3, 3)
-export const COL_LABELS = getColLabels(3)
 
 export const ROLE_COLORS: Record<string, string> = {
   Stimulus: '#55bbff',

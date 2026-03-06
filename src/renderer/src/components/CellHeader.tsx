@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, type JSX } from 'react'
 import type { CellState } from '../../../shared/types'
 import { getCellRole, ROLE_COLORS } from '../../../shared/types'
+import { STATUS_COLOR } from '../utils/status'
 
 interface CellHeaderProps {
   cellState: CellState
@@ -15,12 +16,6 @@ interface CellHeaderProps {
   onLaunch: () => void
   onClose: () => void
   onToggleAutoRestart?: () => void
-}
-
-const STATUS_COLORS: Record<CellState['status'], string> = {
-  idle: '#444',
-  active: '#00ff88',
-  thinking: '#ffcc00',
 }
 
 function shortenPath(p: string): string {
@@ -67,7 +62,7 @@ export default function CellHeader({ cellState, naming = false, waiting = false,
   return (
     <div className="cell-header-wrapper">
     <div className="cell-header" style={{ borderBottom: hasMetadata ? 'none' : `1px solid ${roleColor}22` }}>
-      <span className="status-dot" style={{ background: waiting ? '#ffcc00' : STATUS_COLORS[cellState.status] }} />
+      <span className="status-dot" style={{ background: waiting ? '#ffcc00' : STATUS_COLOR[cellState.status] }} />
 
       {editing ? (
         <input

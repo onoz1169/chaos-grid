@@ -82,7 +82,11 @@ pub fn spawn(
 
     // Spawn reader thread (std::thread for blocking I/O)
     std::thread::spawn(move || {
+        use std::time::{Duration, Instant};
+        const SAVE_THROTTLE: Duration = Duration::from_secs(2);
+
         let mut buf = [0u8; 4096];
+        let mut last_save = Instant::now() - SAVE_THROTTLE; // allow immediate first save
         loop {
             match reader.read(&mut buf) {
                 Ok(n) if n > 0 => {
@@ -119,15 +123,27 @@ pub fn spawn(
                         }
                         drop(states);
 
-                        // Persist output
+                        // Persist output (throttled: at most once per 2 seconds)
+                        if last_save.elapsed() >= SAVE_THROTTLE {
+                            crate::storage::save_cell_output(
+                                &app_handle_for_storage,
+                                &cell_id_for_state,
+                                &buffer_content,
+                            );
+                            last_save = Instant::now();
+                        }
+                    }
+                }
+                _ => {
+                    // Final save on exit to ensure latest output is persisted
+                    {
+                        let buffer_content = buffer_clone.lock().unwrap().clone();
                         crate::storage::save_cell_output(
                             &app_handle_for_storage,
                             &cell_id_for_state,
                             &buffer_content,
                         );
                     }
-                }
-                _ => {
                     #[derive(serde::Serialize, Clone)]
                     struct PtyExitedPayload { #[serde(rename = "cellId")] cell_id: String }
                     let _ = app.emit("pty-exited", PtyExitedPayload { cell_id: cell_id_clone.clone() });
