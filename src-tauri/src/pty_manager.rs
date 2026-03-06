@@ -127,7 +127,7 @@ pub fn spawn(
                         );
                     }
                 }
-                Ok(0) | Err(_) => {
+                _ => {
                     #[derive(serde::Serialize, Clone)]
                     struct PtyExitedPayload { #[serde(rename = "cellId")] cell_id: String }
                     let _ = app.emit("pty-exited", PtyExitedPayload { cell_id: cell_id_clone.clone() });
