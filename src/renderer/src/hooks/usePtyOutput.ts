@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
+import { sendNotification, isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
 import type { MutableRefObject } from 'react'
 
 function parseCost(text: string): number {
@@ -105,6 +106,20 @@ export function usePtyOutput(options: UsePtyOutputOptions): UsePtyOutputResult {
       } else {
         const isWaiting = detectWaiting(outputBufferRef.current)
         if (isWaiting !== waitingRef.current) {
+          if (isWaiting && !waitingRef.current) {
+            // Notify when transitioning from non-waiting to waiting
+            isPermissionGranted().then(granted => {
+              if (!granted) return requestPermission().then(p => p === 'granted')
+              return true
+            }).then(ok => {
+              if (ok) {
+                sendNotification({
+                  title: 'chaos-grid',
+                  body: `[${cellStateRef.current.theme || cellId}] Input needed`,
+                })
+              }
+            }).catch(() => {})
+          }
           waitingRef.current = isWaiting
           setWaiting(isWaiting)
         }
