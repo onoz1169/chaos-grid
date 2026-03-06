@@ -10,9 +10,11 @@ interface CellHeaderProps {
   detectedPort?: string
   cpuPct?: number
   sessionCost?: number
+  autoRestart?: boolean
   onThemeChange: (id: string, theme: string) => void
   onLaunch: () => void
   onClose: () => void
+  onToggleAutoRestart?: () => void
 }
 
 const STATUS_COLORS: Record<CellState['status'], string> = {
@@ -26,7 +28,7 @@ function shortenPath(p: string): string {
   return home.length > 30 ? '...' + home.slice(-27) : home
 }
 
-export default function CellHeader({ cellState, naming = false, waiting = false, workDir, detectedPort, cpuPct = 0, sessionCost, onThemeChange, onLaunch, onClose }: CellHeaderProps): JSX.Element {
+export default function CellHeader({ cellState, naming = false, waiting = false, workDir, detectedPort, cpuPct = 0, sessionCost, autoRestart, onThemeChange, onLaunch, onClose, onToggleAutoRestart }: CellHeaderProps): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(cellState.theme)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -101,6 +103,14 @@ export default function CellHeader({ cellState, naming = false, waiting = false,
         onMouseEnter={e => { e.currentTarget.style.color = roleColor }}
         onMouseLeave={e => { e.currentTarget.style.color = `${roleColor}cc` }}
       >▶</button>
+      {onToggleAutoRestart && (
+        <button
+          className="btn-icon"
+          onClick={onToggleAutoRestart}
+          title={autoRestart ? "Auto-restart ON (click to disable)" : "Auto-restart OFF (click to enable)"}
+          style={{ color: autoRestart ? '#00ff88' : '#444', fontSize: 10, padding: '0 4px' }}
+        >⟳</button>
+      )}
       <button
         className="btn-icon"
         onClick={onClose}

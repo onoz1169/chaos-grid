@@ -23,6 +23,13 @@ export default function Cell({ cellState, onThemeChange, onActivity, compact = f
   const spawnedRef = useRef(false)
   const cellStateRef = useRef(cellState)
 
+  const [autoRestart, setAutoRestart] = useState(() => localStorage.getItem(`chaos-grid-auto-restart-${cellState.id}`) === 'true')
+  const handleToggleAutoRestart = (): void => {
+    const next = !autoRestart
+    setAutoRestart(next)
+    localStorage.setItem(`chaos-grid-auto-restart-${cellState.id}`, String(next))
+  }
+
   useEffect(() => {
     cellStateRef.current = cellState
   }, [cellState])
@@ -50,6 +57,22 @@ export default function Cell({ cellState, onThemeChange, onActivity, compact = f
     const id = setInterval(poll, 2000)
     return () => clearInterval(id)
   }, [cellState.id, cellState.pid])
+
+  // Auto-restart: listen for pty-exited and re-launch if enabled
+  useEffect(() => {
+    let unlisten: (() => void) | null = null
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen<{ cellId: string }>('pty-exited', (event) => {
+        if (event.payload.cellId !== cellState.id) return
+        if (localStorage.getItem(`chaos-grid-auto-restart-${cellState.id}`) === 'true') {
+          setTimeout(() => {
+            invoke('launch_cell', { cellId: cellState.id, workDir: workDir || null, toolCmd: toolCmd || null })
+          }, 2000)
+        }
+      }).then(fn => { unlisten = fn })
+    })
+    return () => { unlisten?.() }
+  }, [cellState.id, workDir, toolCmd])
 
   // Reset when theme is cleared (allows re-naming)
   useEffect(() => {
@@ -136,9 +159,11 @@ export default function Cell({ cellState, onThemeChange, onActivity, compact = f
         detectedPort={detectedPort}
         cpuPct={cpuPct}
         sessionCost={sessionCost}
+        autoRestart={autoRestart}
         onThemeChange={onThemeChange}
         onLaunch={handleLaunch}
         onClose={handleClose}
+        onToggleAutoRestart={handleToggleAutoRestart}
       />
       <div className="terminal-container" ref={terminalRef} />
     </div>
