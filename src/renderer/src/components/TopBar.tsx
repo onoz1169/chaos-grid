@@ -1,201 +1,8 @@
 import { useState, useRef, useEffect, type JSX } from 'react'
-import { invoke } from '@tauri-apps/api/core'
 import type { ViewMode } from './Grid'
-
-// ─── AI Provider config ───────────────────────────────────────────────────────
-
-interface AiConfig {
-  provider: string
-  geminiKey: string
-  openaiKey: string
-  anthropicKey: string
-  model: string | null
-  ollamaUrl: string
-}
-
-const PROVIDERS = [
-  { value: 'gemini', label: 'Gemini (Google)' },
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'anthropic', label: 'Anthropic' },
-  { value: 'ollama', label: 'Ollama (Local)' },
-]
-
-// 2026-03 時点の代表モデル
-const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
-  gemini: [
-    { value: '', label: 'gemini-2.0-flash (default)' },
-    { value: 'gemini-2.5-flash', label: 'gemini-2.5-flash' },
-    { value: 'gemini-2.5-pro', label: 'gemini-2.5-pro' },
-    { value: 'gemini-2.0-flash-lite', label: 'gemini-2.0-flash-lite' },
-    { value: '__custom__', label: 'Custom...' },
-  ],
-  openai: [
-    { value: '', label: 'gpt-4o-mini (default)' },
-    { value: 'gpt-4o', label: 'gpt-4o' },
-    { value: 'gpt-4.5-preview', label: 'gpt-4.5-preview' },
-    { value: 'o3-mini', label: 'o3-mini' },
-    { value: 'o1', label: 'o1' },
-    { value: '__custom__', label: 'Custom...' },
-  ],
-  anthropic: [
-    { value: '', label: 'claude-haiku-4-5 (default)' },
-    { value: 'claude-sonnet-4-6', label: 'claude-sonnet-4-6' },
-    { value: 'claude-opus-4-6', label: 'claude-opus-4-6' },
-    { value: 'claude-3-5-sonnet-latest', label: 'claude-3-5-sonnet-latest' },
-    { value: '__custom__', label: 'Custom...' },
-  ],
-  ollama: [
-    { value: '', label: 'llama3.3 (default)' },
-    { value: 'llama3.2', label: 'llama3.2' },
-    { value: 'qwen2.5', label: 'qwen2.5' },
-    { value: 'deepseek-r1', label: 'deepseek-r1' },
-    { value: 'mistral', label: 'mistral' },
-    { value: 'codellama', label: 'codellama' },
-    { value: '__custom__', label: 'Custom...' },
-  ],
-}
-
-const inputStyle: React.CSSProperties = {
-  background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#ccc',
-  fontFamily: 'monospace', fontSize: 11, padding: '5px 8px',
-  outline: 'none', borderRadius: 3, width: '100%', boxSizing: 'border-box',
-}
-
-function AiSettings(): JSX.Element {
-  const [config, setConfig] = useState<AiConfig>({
-    provider: 'gemini', geminiKey: '', openaiKey: '', anthropicKey: '',
-    model: null, ollamaUrl: 'http://localhost:11434',
-  })
-  const [customModel, setCustomModel] = useState('')
-  const [saved, setSaved] = useState(false)
-
-  useEffect(() => {
-    invoke<AiConfig>('get_ai_config').then((c) => {
-      setConfig(c)
-      const models = PROVIDER_MODELS[c.provider] ?? []
-      const isCustom = c.model && !models.some((m) => m.value === c.model)
-      if (isCustom) setCustomModel(c.model ?? '')
-    }).catch(() => {})
-  }, [])
-
-  const models = PROVIDER_MODELS[config.provider] ?? []
-  const dropdownVal = () => {
-    if (!config.model) return ''
-    if (models.some((m) => m.value === config.model)) return config.model
-    return '__custom__'
-  }
-
-  const handleSave = async () => {
-    const finalModel = dropdownVal() === '__custom__'
-      ? (customModel.trim() || null)
-      : (config.model || null)
-    const toSave = { ...config, model: finalModel }
-    try {
-      await invoke('set_ai_config', { config: toSave })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-    } catch (e) {
-      alert(String(e))
-    }
-  }
-
-  const keyField = (label: string, value: string, onChange: (v: string) => void) => (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: 9, color: '#666' }}>{label}</span>
-      <input
-        type="password"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="sk-..."
-        style={inputStyle}
-        onFocus={(e) => (e.currentTarget.style.borderColor = '#444')}
-        onBlur={(e) => (e.currentTarget.style.borderColor = '#2a2a2a')}
-      />
-    </label>
-  )
-
-  return (
-    <>
-      {/* Divider */}
-      <div style={{ borderTop: '1px solid #1e1e1e', margin: '2px 0' }} />
-      <div style={{ fontSize: 9, color: '#555', letterSpacing: 2 }}>AI PROVIDER</div>
-
-      {/* Provider */}
-      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontSize: 9, color: '#666' }}>PROVIDER</span>
-        <select
-          value={config.provider}
-          onChange={(e) => setConfig({ ...config, provider: e.target.value, model: null })}
-          style={{ width: '100%' }}
-        >
-          {PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-        </select>
-      </label>
-
-      {/* API Key (per provider) */}
-      {config.provider === 'gemini' && keyField('GEMINI API KEY', config.geminiKey, (v) => setConfig({ ...config, geminiKey: v }))}
-      {config.provider === 'openai' && keyField('OPENAI API KEY', config.openaiKey, (v) => setConfig({ ...config, openaiKey: v }))}
-      {config.provider === 'anthropic' && keyField('ANTHROPIC API KEY', config.anthropicKey, (v) => setConfig({ ...config, anthropicKey: v }))}
-
-      {/* Ollama URL */}
-      {config.provider === 'ollama' && (
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 9, color: '#666' }}>OLLAMA URL</span>
-          <input
-            type="text"
-            value={config.ollamaUrl}
-            onChange={(e) => setConfig({ ...config, ollamaUrl: e.target.value })}
-            style={inputStyle}
-            onFocus={(e) => (e.currentTarget.style.borderColor = '#444')}
-            onBlur={(e) => (e.currentTarget.style.borderColor = '#2a2a2a')}
-          />
-        </label>
-      )}
-
-      {/* Model */}
-      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontSize: 9, color: '#666' }}>MODEL</span>
-        <select
-          value={dropdownVal()}
-          onChange={(e) => {
-            const v = e.target.value
-            if (v === '__custom__') {
-              setConfig({ ...config, model: customModel || null })
-            } else {
-              setConfig({ ...config, model: v || null })
-            }
-          }}
-          style={{ width: '100%' }}
-        >
-          {models.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-        </select>
-        {dropdownVal() === '__custom__' && (
-          <input
-            type="text"
-            value={customModel}
-            onChange={(e) => { setCustomModel(e.target.value); setConfig({ ...config, model: e.target.value }) }}
-            placeholder="model name"
-            style={{ ...inputStyle, marginTop: 4 }}
-            onFocus={(e) => (e.currentTarget.style.borderColor = '#444')}
-            onBlur={(e) => (e.currentTarget.style.borderColor = '#2a2a2a')}
-          />
-        )}
-      </label>
-
-      {/* Save */}
-      <button
-        onClick={handleSave}
-        style={{
-          background: saved ? '#1a3a2a' : '#1a2a1a', border: `1px solid ${saved ? '#00ff88' : '#2a3a2a'}`,
-          color: saved ? '#00ff88' : '#4a8a4a', fontSize: 11, padding: '5px 0',
-          borderRadius: 3, cursor: 'pointer', fontFamily: 'monospace',
-        }}
-      >
-        {saved ? '✓ SAVED' : 'SAVE'}
-      </button>
-    </>
-  )
-}
+import type { GridPreset } from '../../../shared/types'
+import AiSettings from './AiSettings'
+import ShortcutGuide from './ShortcutGuide'
 
 export type CliTool = 'claude' | 'codex' | 'custom'
 
@@ -213,57 +20,6 @@ const LANGUAGES = [
   { code: 'French', label: 'FR' },
   { code: 'German', label: 'DE' },
 ]
-
-function ShortcutGuide(): JSX.Element {
-  const [show, setShow] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().includes('MAC')
-  const mod = isMac ? '\u2318\u21E7' : 'Ctrl+Shift+'
-
-  useEffect(() => {
-    if (!show) return
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setShow(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [show])
-
-  const shortcuts = [
-    { key: 'L', label: 'Launch All' },
-    { key: 'R', label: 'Reset All' },
-    { key: 'G', label: 'Grid View' },
-    { key: 'C', label: 'Control View' },
-  ]
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button
-        className="btn-icon"
-        onClick={() => setShow(v => !v)}
-        title="Keyboard shortcuts"
-        style={{ fontSize: 12, color: show ? '#ccc' : '#555', padding: '0 6px' }}
-      >?</button>
-      {show && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-          background: '#111', border: '1px solid #2a2a2a',
-          borderRadius: 6, padding: '10px 14px', zIndex: 100,
-          minWidth: 180, display: 'flex', flexDirection: 'column', gap: 6,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-        }}>
-          <div style={{ fontSize: 9, color: '#555', letterSpacing: 2, marginBottom: 2 }}>SHORTCUTS</div>
-          {shortcuts.map(({ key, label }) => (
-            <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-              <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#888', whiteSpace: 'nowrap' }}>{mod}{key}</span>
-              <span style={{ fontSize: 11, color: '#ccc' }}>{label}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 interface TopBarProps {
   activeCells: number
@@ -283,6 +39,11 @@ interface TopBarProps {
   onCliToolChange: (tool: CliTool) => void
   customCmd: string
   onCustomCmdChange: (cmd: string) => void
+  presets: GridPreset[]
+  onSavePreset: (name: string) => void
+  onLoadPreset: (name: string) => void
+  onDeletePreset: (name: string) => void
+  onBroadcast: (data: string) => void
 }
 
 export default function TopBar({
@@ -293,9 +54,14 @@ export default function TopBar({
   outputDir, onOutputDirChange,
   cliTool, onCliToolChange,
   customCmd, onCustomCmdChange,
+  presets, onSavePreset, onLoadPreset, onDeletePreset,
+  onBroadcast,
 }: TopBarProps): JSX.Element {
   const [showSettings, setShowSettings] = useState(false)
   const settingsRef = useRef<HTMLDivElement>(null)
+  const [broadcastInput, setBroadcastInput] = useState('')
+  const [presetName, setPresetName] = useState('')
+  const [selectedPreset, setSelectedPreset] = useState('')
 
   useEffect(() => {
     if (!showSettings) return
@@ -333,6 +99,38 @@ export default function TopBar({
         ))}
       </div>
 
+      {/* Broadcast input */}
+      <input
+        type="text"
+        value={broadcastInput}
+        onChange={(e) => setBroadcastInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && broadcastInput.trim()) {
+            onBroadcast(broadcastInput + '\n')
+            setBroadcastInput('')
+          }
+        }}
+        placeholder="Broadcast to all..."
+        style={{
+          background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#ccc',
+          fontFamily: 'monospace', fontSize: 11, padding: '4px 8px',
+          outline: 'none', borderRadius: 3, width: 200,
+        }}
+        onFocus={(e) => (e.currentTarget.style.borderColor = '#444')}
+        onBlur={(e) => (e.currentTarget.style.borderColor = '#2a2a2a')}
+      />
+      <button
+        className="btn"
+        disabled={!broadcastInput.trim() || activeCells === 0}
+        onClick={() => {
+          if (broadcastInput.trim()) {
+            onBroadcast(broadcastInput + '\n')
+            setBroadcastInput('')
+          }
+        }}
+        style={{ color: broadcastInput.trim() && activeCells > 0 ? '#ffcc00' : '#555' }}
+      >&#10230; BROADCAST</button>
+
       {/* Primary actions */}
       <button className="btn btn-green" onClick={onLaunchAll}>⚡ LAUNCH ALL</button>
       <button className="btn" onClick={onResetAll} title="Kill all sessions">⟳ RESET ALL</button>
@@ -357,6 +155,58 @@ export default function TopBar({
             boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
           }}>
             <div style={{ fontSize: 9, color: '#555', letterSpacing: 2, marginBottom: 2 }}>SETTINGS</div>
+
+            {/* Presets */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 9, color: '#666' }}>PRESETS</span>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <input
+                  type="text"
+                  value={presetName}
+                  onChange={(e) => setPresetName(e.target.value)}
+                  placeholder="preset name..."
+                  style={{
+                    flex: 1, background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#ccc',
+                    fontFamily: 'monospace', fontSize: 11, padding: '4px 8px',
+                    outline: 'none', borderRadius: 3,
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = '#444')}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = '#2a2a2a')}
+                />
+                <button
+                  className="btn"
+                  onClick={() => { if (presetName.trim()) { onSavePreset(presetName.trim()); setPresetName('') } }}
+                  disabled={!presetName.trim()}
+                  style={{ fontSize: 10, color: presetName.trim() ? '#00ff88' : '#555' }}
+                >保存</button>
+              </div>
+              {presets.length > 0 && (
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <select
+                    value={selectedPreset}
+                    onChange={(e) => setSelectedPreset(e.target.value)}
+                    style={{ flex: 1 }}
+                  >
+                    <option value="">-- select preset --</option>
+                    {presets.map((p) => (
+                      <option key={p.name} value={p.name}>{p.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    className="btn"
+                    onClick={() => { if (selectedPreset) onLoadPreset(selectedPreset) }}
+                    disabled={!selectedPreset}
+                    style={{ fontSize: 10, color: selectedPreset ? '#00ff88' : '#555' }}
+                  >読込</button>
+                  <button
+                    className="btn"
+                    onClick={() => { if (selectedPreset) { onDeletePreset(selectedPreset); setSelectedPreset('') } }}
+                    disabled={!selectedPreset}
+                    style={{ fontSize: 10, color: selectedPreset ? '#ff4466' : '#555' }}
+                  >削除</button>
+                </div>
+              )}
+            </div>
 
             {/* Output directory */}
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

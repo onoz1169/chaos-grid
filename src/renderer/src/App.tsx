@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, type JSX } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import type { CellState } from '../../shared/types'
+import type { CellState, GridPreset } from '../../shared/types'
 import { getCellIds, cellWorkDir } from '../../shared/types'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import TopBar, { type CliTool, TOOL_COMMANDS } from './components/TopBar'
@@ -19,6 +19,8 @@ export default function App(): JSX.Element {
   const [cliTool, setCliTool] = useLocalStorage<CliTool>('chaos-grid-cli-tool', 'claude')
   const [customCmd, setCustomCmd] = useLocalStorage('chaos-grid-custom-cmd', '')
   const [hiddenCells, setHiddenCells] = useLocalStorage<string[]>('chaos-grid-hidden-cells', [])
+  const [presets, setPresets] = useLocalStorage<GridPreset[]>('chaos-grid-presets', [])
+  const [focusedCellId, setFocusedCellId] = useState<string | null>(null)
 
   const resolvedToolCmd = cliTool === 'custom' ? customCmd : TOOL_COMMANDS[cliTool]
 
@@ -49,6 +51,41 @@ export default function App(): JSX.Element {
     setResetKey(k => k + 1)
   }, [setHiddenCells])
 
+  const handleSavePreset = useCallback((name: string) => {
+    const preset: GridPreset = { name, gridRows, gridCols, outputDir, cliTool, customCmd }
+    setPresets((prev) => {
+      const existing = prev.findIndex((p) => p.name === name)
+      if (existing >= 0) {
+        const next = [...prev]
+        next[existing] = preset
+        return next
+      }
+      return [...prev, preset]
+    })
+  }, [gridRows, gridCols, outputDir, cliTool, customCmd, setPresets])
+
+  const handleLoadPreset = useCallback((name: string) => {
+    const preset = presets.find((p) => p.name === name)
+    if (!preset) return
+    setGridRows(preset.gridRows)
+    setGridCols(preset.gridCols)
+    setOutputDir(preset.outputDir)
+    setCliTool(preset.cliTool as CliTool)
+    setCustomCmd(preset.customCmd)
+  }, [presets, setGridRows, setGridCols, setOutputDir, setCliTool, setCustomCmd])
+
+  const handleDeletePreset = useCallback((name: string) => {
+    setPresets((prev) => prev.filter((p) => p.name !== name))
+  }, [setPresets])
+
+  const handleBroadcast = useCallback(async (data: string) => {
+    const activeCellIds = getCellIds(gridRows, gridCols)
+      .filter(id => !hiddenCells.includes(id) && cellStates[id]?.pid)
+    for (const cellId of activeCellIds) {
+      await invoke('write_pty', { cellId, data })
+    }
+  }, [gridRows, gridCols, hiddenCells, cellStates])
+
   const handleLaunchAll = useCallback(async () => {
     const cellIds = getCellIds(gridRows, gridCols).filter((id) => !hiddenCells.includes(id))
     const workDirs = cellIds.map((id) => cellWorkDir(id, cellStates[id], outputDir, gridCols))
@@ -67,6 +104,10 @@ export default function App(): JSX.Element {
           case 'g': e.preventDefault(); setViewMode('grid'); break
           case 'c': e.preventDefault(); setViewMode('control'); break
         }
+      }
+      if (mod && !e.shiftKey && e.key >= '1' && e.key <= '9') {
+        e.preventDefault()
+        setFocusedCellId(`cell-${parseInt(e.key) - 1}`)
       }
     }
     window.addEventListener('keydown', handler)
@@ -102,6 +143,11 @@ export default function App(): JSX.Element {
         onCliToolChange={setCliTool}
         customCmd={customCmd}
         onCustomCmdChange={setCustomCmd}
+        presets={presets}
+        onSavePreset={handleSavePreset}
+        onLoadPreset={handleLoadPreset}
+        onDeletePreset={handleDeletePreset}
+        onBroadcast={handleBroadcast}
       />
       <Grid
         cellStates={cellStates}
@@ -118,6 +164,7 @@ export default function App(): JSX.Element {
         hiddenCells={hiddenCells}
         onHideCell={handleHideCell}
         resetKey={resetKey}
+        focusedCellId={focusedCellId}
       />
     </>
   )
