@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, Fragment, type JSX } from 'react'
+import { useState, useRef, useEffect, useCallback, Fragment, type JSX, createRef } from 'react'
 import type { CellState } from '../../../shared/types'
 import { getCellIds, getColLabels, roleColor, cellWorkDir } from '../../../shared/types'
 import { useLocalStorage } from '../hooks/useLocalStorage'
@@ -42,11 +42,12 @@ interface GridProps {
   hiddenCells: string[]
   onHideCell: (id: string) => void
   resetKey: number
+  focusedCellId?: string
 }
 
 function GridInner({
   cellStates, onThemeChange, onActivity, compact, gridRows, gridCols,
-  outputDir, toolCmd, hiddenCells, onHideCell, resetKey,
+  outputDir, toolCmd, hiddenCells, onHideCell, resetKey, focusedCellId,
 }: {
   cellStates: Record<string, CellState>
   onThemeChange: (id: string, theme: string) => void
@@ -59,9 +60,26 @@ function GridInner({
   hiddenCells: string[]
   onHideCell: (id: string) => void
   resetKey: number
+  focusedCellId?: string
 }): JSX.Element {
   const cellIds = getCellIds(gridRows, gridCols)
   const colLabels = getColLabels(gridCols)
+
+  // Refs for keyboard navigation (focusedCellId)
+  const cellDivRefs = useRef<Record<string, React.RefObject<HTMLDivElement | null>>>({})
+  cellIds.forEach((id) => {
+    if (!cellDivRefs.current[id]) {
+      cellDivRefs.current[id] = createRef<HTMLDivElement | null>()
+    }
+  })
+
+  useEffect(() => {
+    if (!focusedCellId) return
+    const ref = cellDivRefs.current[focusedCellId]
+    if (ref?.current) {
+      ref.current.click()
+    }
+  }, [focusedCellId])
 
   const defaultCellState = (id: string): CellState => ({
     id, theme: '', pid: null, lastOutput: '', status: 'idle', updatedAt: 0
@@ -195,7 +213,9 @@ function GridInner({
                   ) : colCellIds.map((id, cellIndex) => (
                     <Fragment key={id}>
                       {/* Cell wrapper with flex-grow for height resize */}
-                      <div style={{
+                      <div
+                        ref={cellDivRefs.current[id] as React.RefObject<HTMLDivElement>}
+                        style={{
                         flexGrow: cellSizes[id] ?? 1,
                         flexShrink: 1,
                         flexBasis: 0,
@@ -203,6 +223,7 @@ function GridInner({
                         flexDirection: 'column',
                         overflow: 'hidden',
                         minHeight: 60,
+                        outline: focusedCellId === id ? '1px solid #00ff88' : 'none',
                       }}>
                         <Cell
                           cellState={cellStates[id] || defaultCellState(id)}
@@ -250,7 +271,7 @@ function GridInner({
 export default function Grid({
   cellStates, cellActivity: _cellActivity, viewMode, onThemeChange, onActivity,
   language: _language, gridRows, gridCols, outputDir, toolCmd, onGridChange: _onGridChange,
-  hiddenCells, onHideCell, resetKey,
+  hiddenCells, onHideCell, resetKey, focusedCellId,
 }: GridProps): JSX.Element {
   return (
     <>
@@ -272,6 +293,7 @@ export default function Grid({
           hiddenCells={hiddenCells}
           onHideCell={onHideCell}
           resetKey={resetKey}
+          focusedCellId={focusedCellId}
         />
       </div>
       {viewMode === 'control' && (
