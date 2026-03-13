@@ -43,6 +43,35 @@ pub(super) fn check_key(config: &AiConfig) -> Result<(), String> {
     Ok(())
 }
 
+async fn send_request(
+    url: &str,
+    headers: &[(&str, &str)],
+    body: &serde_json::Value,
+    provider_name: &str,
+    text_path: &str,
+) -> Result<String, String> {
+    let client = reqwest::Client::new();
+    let mut req = client.post(url).header("Content-Type", "application/json");
+    for (key, value) in headers {
+        req = req.header(*key, *value);
+    }
+    let resp = req
+        .json(body)
+        .send()
+        .await
+        .map_err(|e| format!("{} request failed: {}", provider_name, e))?;
+    let status = resp.status();
+    let resp_json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("{} response parse failed: {}", provider_name, e))?;
+    if !status.is_success() {
+        let msg = extract_error(&resp_json);
+        return Err(format!("{} API error {}: {}", provider_name, status, msg));
+    }
+    pull_text(&resp_json, text_path)
+}
+
 pub(super) async fn call_gemini(
     config: &AiConfig,
     system: Option<&str>,
@@ -73,27 +102,7 @@ pub(super) async fn call_gemini(
         "generationConfig": {"maxOutputTokens": max_tokens}
     });
 
-    let client = reqwest::Client::new();
-    let resp = client
-        .post(&url)
-        .header("Content-Type", "application/json")
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("Gemini request failed: {}", e))?;
-
-    let status = resp.status();
-    let resp_json: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| format!("Gemini response parse failed: {}", e))?;
-
-    if !status.is_success() {
-        let msg = extract_error(&resp_json);
-        return Err(format!("Gemini API error {}: {}", status, msg));
-    }
-
-    pull_text(&resp_json, "/candidates/0/content/parts/0/text")
+    send_request(&url, &[], &body, "Gemini", "/candidates/0/content/parts/0/text").await
 }
 
 pub(super) async fn call_openai(
@@ -104,6 +113,7 @@ pub(super) async fn call_openai(
 ) -> Result<String, String> {
     let model = effective_model(config);
     let key = active_api_key(config);
+    let auth = format!("Bearer {}", key);
 
     let mut msgs: Vec<serde_json::Value> = Vec::new();
     if let Some(sys) = system {
@@ -120,28 +130,13 @@ pub(super) async fn call_openai(
         "max_tokens": max_tokens
     });
 
-    let client = reqwest::Client::new();
-    let resp = client
-        .post("https://api.openai.com/v1/chat/completions")
-        .header("Content-Type", "application/json")
-        .header("Authorization", format!("Bearer {}", key))
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("OpenAI request failed: {}", e))?;
-
-    let status = resp.status();
-    let resp_json: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| format!("OpenAI response parse failed: {}", e))?;
-
-    if !status.is_success() {
-        let msg = extract_error(&resp_json);
-        return Err(format!("OpenAI API error {}: {}", status, msg));
-    }
-
-    pull_text(&resp_json, "/choices/0/message/content")
+    send_request(
+        "https://api.openai.com/v1/chat/completions",
+        &[("Authorization", &auth)],
+        &body,
+        "OpenAI",
+        "/choices/0/message/content",
+    ).await
 }
 
 pub(super) async fn call_anthropic(
@@ -168,29 +163,13 @@ pub(super) async fn call_anthropic(
         body["system"] = serde_json::Value::String(sys.to_string());
     }
 
-    let client = reqwest::Client::new();
-    let resp = client
-        .post("https://api.anthropic.com/v1/messages")
-        .header("Content-Type", "application/json")
-        .header("x-api-key", key)
-        .header("anthropic-version", "2023-06-01")
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("Anthropic request failed: {}", e))?;
-
-    let status = resp.status();
-    let resp_json: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| format!("Anthropic response parse failed: {}", e))?;
-
-    if !status.is_success() {
-        let msg = extract_error(&resp_json);
-        return Err(format!("Anthropic API error {}: {}", status, msg));
-    }
-
-    pull_text(&resp_json, "/content/0/text")
+    send_request(
+        "https://api.anthropic.com/v1/messages",
+        &[("x-api-key", key), ("anthropic-version", "2023-06-01")],
+        &body,
+        "Anthropic",
+        "/content/0/text",
+    ).await
 }
 
 pub(super) async fn call_ollama(
@@ -223,25 +202,5 @@ pub(super) async fn call_ollama(
         "options": {"num_predict": max_tokens}
     });
 
-    let client = reqwest::Client::new();
-    let resp = client
-        .post(&url)
-        .header("Content-Type", "application/json")
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("Ollama request failed (is ollama running?): {}", e))?;
-
-    let status = resp.status();
-    let resp_json: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| format!("Ollama response parse failed: {}", e))?;
-
-    if !status.is_success() {
-        let msg = extract_error(&resp_json);
-        return Err(format!("Ollama error {}: {}", status, msg));
-    }
-
-    pull_text(&resp_json, "/message/content")
+    send_request(&url, &[], &body, "Ollama", "/message/content").await
 }

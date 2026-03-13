@@ -1,8 +1,11 @@
-import { useMemo, type JSX } from 'react'
+import { useMemo, useState, useEffect, useCallback, type JSX } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import type { CellState } from '../../../shared/types'
 import { getColLabels, roleColor } from '../../../shared/types'
-import type { GenreInfo, FileEntry, ActivityEntry } from '../utils/output-types'
+import type { GenreInfo, FileEntry, ActivityEntry, AnalyzeResult, UncommittedDiff } from '../utils/output-types'
 import { STATUS_DOT, STATUS_COLOR } from '../utils/status'
+import FlowAnalysisPanel from './FlowAnalysisPanel'
+import AgentCard from './AgentCard'
 
 interface DashboardViewProps {
   genres: GenreInfo[]
@@ -16,11 +19,17 @@ interface DashboardViewProps {
   onRefresh: () => void
   onSelectGenre: (name: string) => void
   gridCols: number
+  analyzeResult: AnalyzeResult | null
+  analyzing: boolean
+  onAnalyze: () => void
+  cellSummaries: Record<string, string>
 }
 
 export default function DashboardView({
   genres, cellStates, allFiles, activityEntries, loadingActivity,
   summary, summarizing, onSummarize, onRefresh, onSelectGenre, gridCols,
+  analyzeResult, analyzing, onAnalyze,
+  cellSummaries,
 }: DashboardViewProps): JSX.Element {
   const colLabels = getColLabels(gridCols)
 
@@ -36,6 +45,24 @@ export default function DashboardView({
     })
     return stats
   }, [genres, activityEntries])
+
+  // Load diff stats for each genre
+  const [diffStats, setDiffStats] = useState<Record<string, UncommittedDiff>>({})
+
+  const loadDiffStats = useCallback(() => {
+    genres.forEach((g) => {
+      invoke<UncommittedDiff>('get_uncommitted_diff', { path: g.dir })
+        .then((d) => setDiffStats((prev) => ({ ...prev, [g.name]: d })))
+        .catch(() => {})
+    })
+  }, [genres])
+
+  useEffect(() => { loadDiffStats() }, [loadDiffStats])
+  useEffect(() => {
+    if (genres.length === 0) return
+    const iv = setInterval(loadDiffStats, 15_000)
+    return () => clearInterval(iv)
+  }, [genres, loadDiffStats])
 
   const totalCommits = activityEntries.length
   const totalFiles = genres.reduce((s, g) => s + (allFiles[g.name]?.length ?? 0), 0)
@@ -72,7 +99,18 @@ export default function DashboardView({
             cursor: summarizing ? 'default' : 'pointer',
             fontSize: 9, padding: '3px 12px', borderRadius: 3, letterSpacing: 1,
           }}
-        >{summarizing ? 'ANALYZING...' : '⚡ SUMMARIZE'}</button>
+        >{summarizing ? 'SUMMARIZING...' : 'SUMMARIZE'}</button>
+        <button
+          onClick={onAnalyze}
+          disabled={analyzing}
+          style={{
+            background: analyzing ? '#0a0a1a' : '#001020',
+            border: `1px solid ${analyzing ? '#1a2a3a' : '#55bbff'}`,
+            color: analyzing ? '#3a5a7a' : '#55bbff',
+            cursor: analyzing ? 'default' : 'pointer',
+            fontSize: 9, padding: '3px 12px', borderRadius: 3, letterSpacing: 1,
+          }}
+        >{analyzing ? 'ANALYZING...' : 'ANALYZE FLOW'}</button>
       </div>
 
       {/* Summary text */}
@@ -81,6 +119,9 @@ export default function DashboardView({
           <span style={{ fontSize: 12, color: '#aaa', lineHeight: 1.65 }}>{summary}</span>
         </div>
       )}
+
+      {/* Flow analysis */}
+      {analyzeResult?.flow && <FlowAnalysisPanel analyzeResult={analyzeResult} />}
 
       {/* Agent card grid */}
       <div style={{ flex: 1, overflow: 'auto', padding: '10px' }}>
@@ -108,79 +149,23 @@ export default function DashboardView({
                 </div>
 
                 {/* Agent cards */}
-                {colGenres.map((g) => {
-                  const stats = genreStats[g.name]
-                  const cs = cellStates[g.cellId]
-                  const status = cs?.status ?? 'idle'
-                  const files = allFiles[g.name] ?? []
-                  const latest = stats?.latest
-
-                  return (
-                    <div
-                      key={g.name}
-                      onClick={() => onSelectGenre(g.name)}
-                      style={{
-                        background: isWill ? '#050e07' : '#0e0e0e',
-                        border: `1px solid ${status === 'idle' ? '#181818' : rc + '55'}`,
-                        borderLeft: `3px solid ${STATUS_COLOR[status]}`,
-                        borderRadius: 4,
-                        padding: '10px 12px',
-                        cursor: 'pointer',
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = isWill ? '#081409' : '#141414' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = isWill ? '#050e07' : '#0e0e0e' }}
-                    >
-                      {/* Name + status */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                        <span style={{ fontSize: 12, color: STATUS_COLOR[status] }}>{STATUS_DOT[status]}</span>
-                        <span style={{
-                          fontSize: 12, fontWeight: 600,
-                          color: status === 'idle' ? '#777' : '#ddd',
-                          flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>
-                          {g.name || '—'}
-                        </span>
-                      </div>
-
-                      {/* Metrics */}
-                      <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
-                        <div style={{ flex: 1, textAlign: 'center', borderRight: '1px solid #1a1a1a' }}>
-                          <div style={{ fontSize: 20, fontWeight: 700, color: stats?.commits ? rc : '#2a2a2a', lineHeight: 1 }}>
-                            {stats?.commits ?? 0}
-                          </div>
-                          <div style={{ fontSize: 8, color: '#444', letterSpacing: 1, marginTop: 2 }}>COMMITS</div>
-                        </div>
-                        <div style={{ flex: 1, textAlign: 'center' }}>
-                          <div style={{ fontSize: 20, fontWeight: 700, color: files.length ? '#999' : '#2a2a2a', lineHeight: 1 }}>
-                            {files.length}
-                          </div>
-                          <div style={{ fontSize: 8, color: '#444', letterSpacing: 1, marginTop: 2 }}>FILES</div>
-                        </div>
-                      </div>
-
-                      {/* Latest commit */}
-                      <div style={{ borderTop: '1px solid #181818', paddingTop: 6 }}>
-                        {latest ? (
-                          <>
-                            <div style={{
-                              fontSize: 10, color: '#777',
-                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                              marginBottom: 2,
-                            }}>
-                              {latest.message}
-                            </div>
-                            <div style={{ fontSize: 9, color: '#444' }}>{latest.timeAgo}</div>
-                          </>
-                        ) : (
-                          <div style={{ fontSize: 10, color: '#2a2a2a' }}>no commits yet</div>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+                {colGenres.map((g) => (
+                  <AgentCard
+                    key={g.name}
+                    genre={g}
+                    cellState={cellStates[g.cellId]}
+                    files={allFiles[g.name] ?? []}
+                    stats={genreStats[g.name]}
+                    completionSummary={cellSummaries[g.cellId]}
+                    diffStat={diffStats[g.name]}
+                    isWill={isWill}
+                    roleColor={rc}
+                    onClick={() => onSelectGenre(g.name)}
+                  />
+                ))}
 
                 {colGenres.length === 0 && (
-                  <div style={{ padding: '12px', fontSize: 10, color: '#2a2a2a', textAlign: 'center' }}>—</div>
+                  <div style={{ padding: '12px', fontSize: 10, color: '#2a2a2a', textAlign: 'center' }}>{'\u2014'}</div>
                 )}
               </div>
             )
