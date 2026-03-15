@@ -1,8 +1,10 @@
 mod analyze;
+mod debate;
 mod providers;
 mod utils;
 
 pub(crate) use analyze::analyze_cells;
+pub(crate) use debate::run_debate;
 
 use crate::storage::AiConfig;
 use providers::{check_key, call_gemini, call_openai, call_anthropic, call_ollama};

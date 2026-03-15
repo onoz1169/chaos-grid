@@ -5,7 +5,6 @@ import { STATUS_COLOR } from '../utils/status'
 
 interface CellHeaderProps {
   cellState: CellState
-  naming?: boolean
   waiting?: boolean
   workDir?: string
   detectedPort?: string
@@ -23,7 +22,7 @@ function shortenPath(p: string): string {
   return home.length > 30 ? '...' + home.slice(-27) : home
 }
 
-export default function CellHeader({ cellState, naming = false, waiting = false, workDir, detectedPort, cpuPct = 0, sessionCost, autoRestart, onThemeChange, onLaunch, onClose, onToggleAutoRestart }: CellHeaderProps): JSX.Element {
+export default function CellHeader({ cellState, waiting = false, workDir, detectedPort, cpuPct = 0, sessionCost, autoRestart, onThemeChange, onLaunch, onClose, onToggleAutoRestart }: CellHeaderProps): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(cellState.theme)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -51,10 +50,8 @@ export default function CellHeader({ cellState, naming = false, waiting = false,
     }
   }
 
-  const displayName = naming && !cellState.theme ? '...' : (cellState.theme || '—')
-  const nameColor = naming && !cellState.theme
-    ? '#555'
-    : cellState.theme ? roleColor : '#444'
+  const displayName = cellState.theme || '—'
+  const nameColor = cellState.theme ? roleColor : '#444'
 
   const cpuColor = cpuPct >= 10 ? '#00ff88' : cpuPct >= 2 ? '#ffcc00' : '#444'
   const hasMetadata = workDir || detectedPort || cpuPct >= 2 || (sessionCost ?? 0) > 0
@@ -84,7 +81,7 @@ export default function CellHeader({ cellState, naming = false, waiting = false,
         <span
           onClick={() => { setDraft(cellState.theme); setEditing(true) }}
           style={{ fontSize: 13, fontWeight: 600, color: nameColor, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'text', minWidth: 40 }}
-          title={naming && !cellState.theme ? 'Generating name...' : 'Click to name this cell'}
+          title="Click to name this cell"
         >
           {displayName}
         </span>

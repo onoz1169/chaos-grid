@@ -154,41 +154,42 @@ pub fn save_analysis(
     }
 }
 
-// ─── Session Restore ──────────────────────────────────────────────────────────
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionEntry {
-    pub cell_id: String,
-    pub work_dir: String,
-    pub tool_cmd: String,
-}
+// ─── Debate History ──────────────────────────────────────────────────────────
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct SavedSession {
-    pub entries: Vec<SessionEntry>,
-    pub saved_at: u64,
-}
+const MAX_DEBATE_HISTORY: usize = 50;
 
-pub fn save_session(app: &tauri::AppHandle, entries: Vec<SessionEntry>) {
-    let dir = data_dir(app);
-    ensure_dir(&dir);
-    let path = dir.join("session.json");
-    let session = SavedSession {
-        entries,
-        saved_at: crate::now_millis(),
-    };
-    if let Ok(json) = serde_json::to_string(&session) {
-        let _ = fs::write(path, json);
+pub fn load_debate_history(app: &tauri::AppHandle) -> Vec<crate::DebateResult> {
+    let path = data_dir(app).join("debate-history.json");
+    if !path.exists() {
+        return Vec::new();
+    }
+    match fs::read_to_string(&path) {
+        Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
+        Err(_) => Vec::new(),
     }
 }
 
-pub fn load_session(app: &tauri::AppHandle) -> Option<SavedSession> {
+pub fn save_debate_entry(app: &tauri::AppHandle, entry: &crate::DebateResult) {
     let dir = data_dir(app);
-    let path = dir.join("session.json");
-    let content = fs::read_to_string(path).ok()?;
-    serde_json::from_str(&content).ok()
+    ensure_dir(&dir);
+    let path = dir.join("debate-history.json");
+
+    let mut history = load_debate_history(app);
+    history.push(entry.clone());
+
+    if history.len() > MAX_DEBATE_HISTORY {
+        let start = history.len() - MAX_DEBATE_HISTORY;
+        history = history[start..].to_vec();
+    }
+
+    if let Ok(json) = serde_json::to_string_pretty(&history) {
+        let _ = fs::write(&path, json);
+    }
+}
+
+pub(crate) fn now_iso() -> String {
+    chrono_now_iso()
 }
 
 fn chrono_now_iso() -> String {

@@ -36,3 +36,41 @@ export interface ActivityEntry {
   timeAgo: string
   message: string
 }
+
+export interface FlowConnection {
+  fromCell: string
+  toCell: string
+  insight: string
+}
+
+export interface FlowAnalysis {
+  stimuliToWill: string
+  willToSupply: string
+  stuck: string
+  next: string
+  blockedCells?: string[] | null
+  priorityCell?: string | null
+  confidence?: string | null
+  connections?: FlowConnection[] | null
+  humanQuestions?: string[] | null
+  changesSinceLast?: string | null
+}
+
+export interface AnalyzeResult {
+  summaries: Record<string, string>
+  ideas: string[]
+  flow: FlowAnalysis | null
+}
+
+export interface DiffFileStat {
+  name: string
+  insertions: number
+  deletions: number
+}
+
+export interface UncommittedDiff {
+  files: DiffFileStat[]
+  diffText: string
+  totalInsertions: number
+  totalDeletions: number
+}

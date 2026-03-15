@@ -32,6 +32,7 @@ interface GridProps {
   viewMode: ViewMode
   onThemeChange: (id: string, theme: string) => void
   onActivity: (id: string) => void
+  onCostChange: (id: string, cost: number) => void
   gridRows: number
   gridCols: number
   outputDir: string
@@ -40,15 +41,17 @@ interface GridProps {
   onHideCell: (id: string) => void
   resetKey: number
   focusedCellId?: string
+  cellSummaries: Record<string, string>
 }
 
 function GridInner({
-  cellStates, onThemeChange, onActivity, compact, gridRows, gridCols,
+  cellStates, onThemeChange, onActivity, onCostChange, compact, gridRows, gridCols,
   outputDir, toolCmd, hiddenCells, onHideCell, resetKey, focusedCellId,
 }: {
   cellStates: Record<string, CellState>
   onThemeChange: (id: string, theme: string) => void
   onActivity: (id: string) => void
+  onCostChange: (id: string, cost: number) => void
   compact?: boolean
   gridRows: number
   gridCols: number
@@ -224,6 +227,7 @@ function GridInner({
                           cellState={cellStates[id] || defaultCellState(id)}
                           onThemeChange={onThemeChange}
                           onActivity={onActivity}
+                          onCostChange={onCostChange}
                           compact={compact}
                           workDir={outputDir ? cellWorkDir(id, cellStates[id], outputDir, gridCols) : undefined}
                           toolCmd={toolCmd}
@@ -264,9 +268,10 @@ function GridInner({
 }
 
 export default function Grid({
-  cellStates, viewMode, onThemeChange, onActivity,
+  cellStates, viewMode, onThemeChange, onActivity, onCostChange,
   gridRows, gridCols, outputDir, toolCmd,
   hiddenCells, onHideCell, resetKey, focusedCellId,
+  cellSummaries,
 }: GridProps): JSX.Element {
   return (
     <>
@@ -281,6 +286,7 @@ export default function Grid({
           cellStates={cellStates}
           onThemeChange={onThemeChange}
           onActivity={onActivity}
+          onCostChange={onCostChange}
           gridRows={gridRows}
           gridCols={gridCols}
           outputDir={outputDir}
@@ -292,7 +298,13 @@ export default function Grid({
         />
       </div>
       {viewMode === 'control' && (
-        <ControlView cellStates={cellStates} gridRows={gridRows} gridCols={gridCols} outputDir={outputDir} />
+        <ControlView
+          cellStates={cellStates}
+          gridRows={gridRows}
+          gridCols={gridCols}
+          outputDir={outputDir}
+          cellSummaries={cellSummaries}
+        />
       )}
     </>
   )

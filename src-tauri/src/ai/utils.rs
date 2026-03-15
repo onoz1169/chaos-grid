@@ -31,24 +31,3 @@ pub(super) fn extract_json_object(text: &str) -> Option<String> {
     }
 }
 
-pub(super) fn strip_ansi(s: &str) -> String {
-    let mut result = String::new();
-    let mut chars = s.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '\x1b' {
-            if chars.peek() == Some(&'[') {
-                chars.next();
-                for nc in chars.by_ref() {
-                    if nc.is_ascii_alphabetic() {
-                        break;
-                    }
-                }
-            } else {
-                chars.next();
-            }
-        } else if c != '\r' {
-            result.push(c);
-        }
-    }
-    result
-}

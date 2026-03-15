@@ -2,21 +2,24 @@ import { useState, useEffect, useCallback, useMemo, useRef, type JSX } from 'rea
 import { invoke } from '@tauri-apps/api/core'
 import type { CellState } from '../../../shared/types'
 import { getCellIds, getCellRole, roleColor, cellWorkDir } from '../../../shared/types'
-import type { FileEntry, GenreInfo, GitInfo, ActivityEntry } from '../utils/output-types'
+import type { FileEntry, GenreInfo, GitInfo, ActivityEntry, AnalyzeResult } from '../utils/output-types'
 import AgentStatusBar from './AgentStatusBar'
 import GenreSelector from './GenreSelector'
 import { FileListPanel, FilePreview } from './FilesTab'
 import GitPanel from './GitPanel'
 import DashboardView from './DashboardView'
+import DiffTab from './DiffTab'
 import TaskQueue from './TaskQueue'
+import DebatePanel from './DebatePanel'
 
-type RightMode = 'dashboard' | 'files' | 'git' | 'tasks'
+type RightMode = 'dashboard' | 'diff' | 'files' | 'git' | 'tasks' | 'debate'
 
 interface OutputViewProps {
   cellStates: Record<string, CellState>
   gridRows: number
   gridCols: number
   outputDir: string
+  cellSummaries: Record<string, string>
 }
 
 const tabStyle = (active: boolean) => ({
@@ -27,7 +30,7 @@ const tabStyle = (active: boolean) => ({
   height: '100%',
 })
 
-export default function OutputView({ cellStates, gridRows, gridCols, outputDir }: OutputViewProps): JSX.Element {
+export default function OutputView({ cellStates, gridRows, gridCols, outputDir, cellSummaries }: OutputViewProps): JSX.Element {
   const [allFiles, setAllFiles] = useState<Record<string, FileEntry[]>>({})
   const [loadingGenres, setLoadingGenres] = useState<Set<string>>(new Set())
   const [activityEntries, setActivityEntries] = useState<ActivityEntry[]>([])
@@ -42,6 +45,8 @@ export default function OutputView({ cellStates, gridRows, gridCols, outputDir }
   const [rightMode, setRightMode] = useState<RightMode>('dashboard')
   const [gitInfo, setGitInfo] = useState<GitInfo | null>(null)
   const [gitLoading, setGitLoading] = useState(false)
+  const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null)
+  const [analyzing, setAnalyzing] = useState(false)
 
   const language = localStorage.getItem('chaos-grid-language') ?? 'Japanese'
 
@@ -69,6 +74,13 @@ export default function OutputView({ cellStates, gridRows, gridCols, outputDir }
       .then((r) => { setSummary(r); setSummarizing(false) })
       .catch(() => setSummarizing(false))
   }, [language])
+
+  const analyzeFlow = useCallback(() => {
+    setAnalyzing(true)
+    invoke<AnalyzeResult>('analyze', { language, cols: gridCols, outputDir })
+      .then((r) => { setAnalyzeResult(r); setAnalyzing(false) })
+      .catch(() => setAnalyzing(false))
+  }, [language, gridCols, outputDir])
 
   const loadFiles = useCallback((genreList: GenreInfo[]) => {
     setLoadingGenres(new Set(genreList.map((g) => g.name)))
@@ -193,13 +205,17 @@ export default function OutputView({ cellStates, gridRows, gridCols, outputDir }
         display: 'flex', alignItems: 'stretch', flexShrink: 0, paddingLeft: 4,
       }}>
         <button style={tabStyle(rightMode === 'dashboard')} onClick={() => setRightMode('dashboard')}>DASHBOARD</button>
+        <button style={tabStyle(rightMode === 'diff')} onClick={() => setRightMode('diff')}>DIFF</button>
         <button style={tabStyle(rightMode === 'files')} onClick={() => setRightMode('files')}>FILES</button>
         <button style={tabStyle(rightMode === 'git')} onClick={() => setRightMode('git')}>GIT</button>
         <button style={tabStyle(rightMode === 'tasks')} onClick={() => setRightMode('tasks')}>TASKS</button>
+        <button style={tabStyle(rightMode === 'debate')} onClick={() => setRightMode('debate')}>DEBATE</button>
       </div>
 
       {/* Content */}
-      {rightMode === 'dashboard' ? (
+      {rightMode === 'diff' ? (
+        <DiffTab genres={genres} />
+      ) : rightMode === 'dashboard' ? (
         <DashboardView
           genres={genres}
           cellStates={cellStates}
@@ -212,11 +228,21 @@ export default function OutputView({ cellStates, gridRows, gridCols, outputDir }
           onRefresh={() => { loadFiles(genres); loadActivity(genres) }}
           onSelectGenre={(name) => { setSelectedGenre(name); setRightMode('files') }}
           gridCols={gridCols}
+          analyzeResult={analyzeResult}
+          analyzing={analyzing}
+          onAnalyze={analyzeFlow}
+          cellSummaries={cellSummaries}
         />
       ) : rightMode === 'tasks' ? (
         <TaskQueue
           cellIds={getCellIds(gridRows, gridCols)}
           cellStates={cellStates}
+        />
+      ) : rightMode === 'debate' ? (
+        <DebatePanel
+          cellStates={cellStates}
+          gridCols={gridCols}
+          outputDir={outputDir}
         />
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

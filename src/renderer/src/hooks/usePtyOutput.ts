@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { listen } from '@tauri-apps/api/event'
-import { invoke } from '@tauri-apps/api/core'
 import { sendNotification, isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
 import type { MutableRefObject } from 'react'
 
@@ -8,8 +7,6 @@ function parseCost(text: string): number {
   const match = text.match(/[Cc]ost:\s*\$([0-9]+\.[0-9]+)/)
   return match ? parseFloat(match[1]) : 0
 }
-
-const AUTO_NAME_OUTPUT_THRESHOLD = 1500
 
 const WAITING_PATTERNS = [
   /^\? /m,
@@ -35,7 +32,6 @@ function detectPort(buffer: string): string | undefined {
 interface UsePtyOutputOptions {
   cellId: string
   onActivity: (id: string) => void
-  onThemeChange: (id: string, theme: string) => void
   onPtyData: (data: string) => void
   cellStateRef: MutableRefObject<{ theme: string }>
 }
@@ -43,44 +39,25 @@ interface UsePtyOutputOptions {
 interface UsePtyOutputResult {
   waiting: boolean
   detectedPort: string | undefined
-  naming: boolean
-  userSubmittedRef: MutableRefObject<boolean>
-  rawOutputRef: MutableRefObject<string>
-  namingRef: MutableRefObject<boolean>
-  resetNaming: () => void
   sessionCost: number
 }
 
 export function usePtyOutput(options: UsePtyOutputOptions): UsePtyOutputResult {
-  const { cellId, onActivity, onThemeChange, onPtyData, cellStateRef } = options
+  const { cellId, onActivity, onPtyData, cellStateRef } = options
 
   // Store callbacks in refs so the listener closure always sees the latest
   const onPtyDataRef = useRef(onPtyData)
   onPtyDataRef.current = onPtyData
   const onActivityRef = useRef(onActivity)
   onActivityRef.current = onActivity
-  const onThemeChangeRef = useRef(onThemeChange)
-  onThemeChangeRef.current = onThemeChange
 
   const outputBufferRef = useRef('')
   const waitingRef = useRef(false)
   const [waiting, setWaiting] = useState(false)
   const [detectedPort, setDetectedPort] = useState<string | undefined>(undefined)
 
-  const rawOutputRef = useRef('')
-  const userSubmittedRef = useRef(false)
-  const namingRef = useRef(false)
-  const [naming, setNaming] = useState(false)
-
   const sessionCostRef = useRef(0)
   const [sessionCost, setSessionCost] = useState(0)
-
-  const resetNaming = useCallback((): void => {
-    namingRef.current = false
-    userSubmittedRef.current = false
-    setNaming(false)
-    rawOutputRef.current = ''
-  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -135,31 +112,6 @@ export function usePtyOutput(options: UsePtyOutputOptions): UsePtyOutputResult {
         sessionCostRef.current += cost
         setSessionCost(sessionCostRef.current)
       }
-
-      // Auto-name: accumulate output after first user submit, fire once threshold is crossed
-      if (!namingRef.current && !cellStateRef.current.theme && userSubmittedRef.current) {
-        rawOutputRef.current += event.payload.data
-        if (rawOutputRef.current.length >= AUTO_NAME_OUTPUT_THRESHOLD) {
-          namingRef.current = true
-          setNaming(true)
-          const language = localStorage.getItem('chaos-grid-language') ?? 'Japanese'
-          invoke<string>('suggest_cell_name', {
-            output: rawOutputRef.current,
-            language,
-          })
-            .then((name) => {
-              const trimmed = name.trim()
-              if (trimmed && !cellStateRef.current.theme) {
-                onThemeChangeRef.current(cellId, trimmed)
-              }
-              setNaming(false)
-            })
-            .catch(() => {
-              namingRef.current = false
-              setNaming(false)
-            })
-        }
-      }
     }).then((fn) => {
       if (mounted) {
         unlistenFn = fn
@@ -177,11 +129,6 @@ export function usePtyOutput(options: UsePtyOutputOptions): UsePtyOutputResult {
   return {
     waiting,
     detectedPort,
-    naming,
-    userSubmittedRef,
-    rawOutputRef,
-    namingRef,
-    resetNaming,
     sessionCost,
   }
 }

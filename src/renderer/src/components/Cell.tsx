@@ -11,13 +11,14 @@ interface CellProps {
   cellState: CellState
   onThemeChange: (id: string, theme: string) => void
   onActivity: (id: string) => void
+  onCostChange?: (id: string, cost: number) => void
   compact?: boolean
   workDir?: string
   toolCmd?: string
   onClose?: () => void
 }
 
-export default function Cell({ cellState, onThemeChange, onActivity, compact = false, workDir, toolCmd, onClose }: CellProps): JSX.Element {
+export default function Cell({ cellState, onThemeChange, onActivity, onCostChange, compact = false, workDir, toolCmd, onClose }: CellProps): JSX.Element {
   const terminalRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const spawnedRef = useRef(false)
@@ -38,13 +39,17 @@ export default function Cell({ cellState, onThemeChange, onActivity, compact = f
     termRef.current?.write(data)
   }, [])
 
-  const { waiting, detectedPort, naming, userSubmittedRef, rawOutputRef, resetNaming, sessionCost } = usePtyOutput({
+  const { waiting, detectedPort, sessionCost } = usePtyOutput({
     cellId: cellState.id,
     onActivity,
-    onThemeChange,
     onPtyData: handlePtyData,
     cellStateRef,
   })
+
+  // Propagate cost changes to parent
+  useEffect(() => {
+    if (sessionCost > 0 && onCostChange) onCostChange(cellState.id, sessionCost)
+  }, [sessionCost, cellState.id, onCostChange])
 
   // CPU polling — 2s interval while cell has a live PID
   const [cpuPct, setCpuPct] = useState(0)
@@ -73,13 +78,6 @@ export default function Cell({ cellState, onThemeChange, onActivity, compact = f
     })
     return () => { unlisten?.() }
   }, [cellState.id, workDir, toolCmd])
-
-  // Reset when theme is cleared (allows re-naming)
-  useEffect(() => {
-    if (!cellState.theme) {
-      resetNaming()
-    }
-  }, [cellState.theme, resetNaming])
 
   useEffect(() => {
     if (!terminalRef.current || termRef.current) return
@@ -113,11 +111,6 @@ export default function Cell({ cellState, onThemeChange, onActivity, compact = f
 
     term.onData((data) => {
       invoke('write_pty', { cellId: cellState.id, data })
-      // Track first Enter press — only accumulate output after user has submitted
-      if (!userSubmittedRef.current && (data === '\r' || data === '\n')) {
-        userSubmittedRef.current = true
-        rawOutputRef.current = '' // discard startup noise
-      }
     })
 
     const resizeObserver = new ResizeObserver(() => {
@@ -153,7 +146,6 @@ export default function Cell({ cellState, onThemeChange, onActivity, compact = f
     >
       <CellHeader
         cellState={cellState}
-        naming={naming}
         waiting={waiting}
         workDir={workDir}
         detectedPort={detectedPort}

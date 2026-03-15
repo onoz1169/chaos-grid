@@ -5,13 +5,11 @@ import { getCellIds, cellWorkDir } from '../../shared/types'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import TopBar, { type CliTool, TOOL_COMMANDS } from './components/TopBar'
 import Grid, { type ViewMode } from './components/Grid'
-import SessionRestoreDialog from './components/SessionRestoreDialog'
 
 export default function App(): JSX.Element {
   const [cellStates, setCellStates] = useState<Record<string, CellState>>({})
   const [cellActivity, setCellActivity] = useState<Record<string, number>>({})
   const [resetKey, setResetKey] = useState(0)
-  const [showRestoreDialog, setShowRestoreDialog] = useState(true)
 
   const [viewMode, setViewMode] = useLocalStorage<ViewMode>('chaos-grid-view', 'grid')
   const [language, setLanguage] = useLocalStorage('chaos-grid-language', 'Japanese')
@@ -36,6 +34,10 @@ export default function App(): JSX.Element {
 
   const handleActivity = useCallback((id: string) => {
     setCellActivity((prev) => ({ ...prev, [id]: Date.now() }))
+  }, [])
+
+  const handleCostChange = useCallback((_id: string, _cost: number) => {
+    // Reserved for API-billed usage; no-op for subscription plans
   }, [])
 
   const handleGridChange = useCallback((rows: number, cols: number) => {
@@ -121,46 +123,12 @@ export default function App(): JSX.Element {
     setCellStates((prev) => ({ ...prev, [id]: { ...prev[id], theme } }))
   }, [])
 
-  // Save session whenever active cells change (debounced 2s)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const entries = Object.values(cellStates)
-        .filter((c) => c.pid)
-        .map((c) => ({
-          cellId: c.id,
-          workDir: cellWorkDir(c.id, c, outputDir, gridCols),
-          toolCmd: resolvedToolCmd,
-        }))
-      if (entries.length > 0) {
-        invoke('save_session_state', { entries }).catch(() => {})
-      }
-    }, 2000)
-    return () => clearTimeout(timer)
-  }, [cellStates, outputDir, gridCols, resolvedToolCmd])
-
-  const handleRestoreSession = useCallback(async (entries: Array<{ cellId: string; workDir: string; toolCmd: string }>) => {
-    setShowRestoreDialog(false)
-    for (const entry of entries) {
-      await invoke('launch_cell', {
-        cellId: entry.cellId,
-        workDir: entry.workDir || null,
-        toolCmd: entry.toolCmd || null,
-      })
-    }
-  }, [])
-
   const activeCells = Object.values(cellActivity).filter(
     (t) => Date.now() - t < 120_000
   ).length
 
   return (
     <>
-      {showRestoreDialog && (
-        <SessionRestoreDialog
-          onRestore={handleRestoreSession}
-          onDismiss={() => setShowRestoreDialog(false)}
-        />
-      )}
       <TopBar
         activeCells={activeCells}
         totalCells={gridRows * gridCols}
@@ -190,6 +158,7 @@ export default function App(): JSX.Element {
         viewMode={viewMode}
         onThemeChange={handleThemeChange}
         onActivity={handleActivity}
+        onCostChange={handleCostChange}
         gridRows={gridRows}
         gridCols={gridCols}
         outputDir={outputDir}
@@ -198,6 +167,7 @@ export default function App(): JSX.Element {
         onHideCell={handleHideCell}
         resetKey={resetKey}
         focusedCellId={focusedCellId}
+        cellSummaries={{}}
       />
     </>
   )

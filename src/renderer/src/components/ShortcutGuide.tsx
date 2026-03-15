@@ -23,12 +23,12 @@ export default function ShortcutGuide(): JSX.Element {
   ]
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
       <button
         className="btn-icon"
         onClick={() => setShow(v => !v)}
         title="Keyboard shortcuts"
-        style={{ fontSize: 12, color: show ? '#ccc' : '#555', padding: '0 6px' }}
+        style={{ fontSize: 14, color: show ? '#fff' : '#ccc', padding: '0 6px' }}
       >?</button>
       {show && (
         <div style={{
