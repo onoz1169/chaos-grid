@@ -9,7 +9,7 @@ use crate::{CellStateMap, PtySessions, now_millis, pty_manager,
 /// redirections, substitutions, quoting, globbing and special expansions.
 const SHELL_METACHARACTERS: &[char] = &[
     ';', '|', '&', '$', '`', '>', '<', '\\',
-    '!', '(', ')', '{', '}', '*', '?', '~', '#',
+    '!', '(', ')', '{', '}', '*', '?', '#',
     '\n', '\r',
 ];
 
